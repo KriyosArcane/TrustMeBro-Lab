@@ -39,7 +39,7 @@ This toggles malware, behavior, memory, and ransomware protections all at once a
 ## Prerequisites
 
 - Ludus server with Proxmox (16+ cores, 64GB+ RAM recommended)
-- Templates built: `win11-22h2-x64-enterprise-template`, `debian-12-x64-server-template`, `kali-x64-desktop-template`
+- Templates built: `win11-22h2-x64-enterprise-template`, `debian-11-x64-server-template`, `kali-x64-desktop-template`
 - Ludus community roles installed:
   ```
   ludus ansible roles add badsectorlabs.ludus_elastic_container

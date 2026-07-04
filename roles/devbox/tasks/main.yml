@@ -44,8 +44,17 @@
   failed_when: false
 
 # ── Defender: disable all protections ────────────────────────────────
-# Tamper Protection may block Set-MpPreference. Registry-only approach.
-- name: Disable Defender via registry (survives reboot)
+# Tamper Protection blocks Set-MpPreference and registry writes to Defender keys.
+# Strategy: (1) Add C:\ exclusion (works WITH Tamper Protection), (2) registry
+# keys for full disable (take effect after next reboot), (3) best-effort stop.
+
+- name: Add whole-drive Defender exclusion (bypasses Tamper Protection)
+  ansible.windows.win_powershell:
+    script: |
+      Add-MpPreference -ExclusionPath 'C:\' -ErrorAction SilentlyContinue
+  failed_when: false
+
+- name: Disable Defender via Group Policy registry keys
   ansible.windows.win_regedit:
     path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender
     name: DisableAntiSpyware
@@ -53,7 +62,7 @@
     type: dword
   failed_when: false
 
-- name: Disable Defender real-time monitoring
+- name: Disable Defender real-time monitoring via registry
   ansible.windows.win_regedit:
     path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection
     name: "{{ item }}"
@@ -65,6 +74,14 @@
     - DisableOnAccessProtection
     - DisableScanOnRealtimeEnable
     - DisableIOAVProtection
+  failed_when: false
+
+- name: Disable Defender SmartScreen
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\SmartScreen
+    name: ConfigureAppInstallControlEnabled
+    data: 0
+    type: dword
   failed_when: false
 
 - name: Stop Defender service (best effort)

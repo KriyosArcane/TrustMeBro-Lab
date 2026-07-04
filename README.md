@@ -50,15 +50,19 @@ This toggles malware, behavior, memory, and ransomware protections all at once a
 ## Deploy
 
 ```bash
-# 1. Clone this repo to your Ludus host
-git clone https://github.com/KriyosArcane/TrustMeBro-Lab.git
-cd TrustMeBro-Lab
+# 1. Install community roles
+ludus ansible roles add badsectorlabs.ludus_elastic_container
+ludus ansible roles add badsectorlabs.ludus_elastic_agent
+ludus ansible roles add geerlingguy.docker
 
-# 2. Copy custom roles to Ludus
-cp -r roles/devbox ~/.ludus/roles/trustmebro_devbox
-cp -r roles/target ~/.ludus/roles/trustmebro_target
+# 2. Install TrustMeBro roles (download zips from latest release)
+wget https://github.com/KriyosArcane/TrustMeBro-Lab/releases/download/roles-latest/trustmebro_devbox.zip
+wget https://github.com/KriyosArcane/TrustMeBro-Lab/releases/download/roles-latest/trustmebro_target.zip
+ludus ansible roles add trustmebro_devbox.zip
+ludus ansible roles add trustmebro_target.zip
 
 # 3. Set the range config
+wget https://raw.githubusercontent.com/KriyosArcane/TrustMeBro-Lab/main/range-config.yml
 ludus range config set -f range-config.yml
 
 # 4. Deploy
@@ -68,7 +72,7 @@ ludus range deploy
 ludus range status
 ```
 
-Full deployment takes 30-45 minutes depending on hardware.
+Role zips are built automatically by GitHub Actions on every push to `roles/`. You do not need to clone the repo.
 
 ## Accessing Machines
 

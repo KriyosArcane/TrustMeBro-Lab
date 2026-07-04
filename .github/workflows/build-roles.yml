@@ -1,0 +1,47 @@
+name: Build Role Archives
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'roles/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package devbox role
+        run: cd roles && zip -r ../trustmebro_devbox.zip devbox/
+
+      - name: Package target role
+        run: cd roles && zip -r ../trustmebro_target.zip target/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ludus-roles
+          path: |
+            trustmebro_devbox.zip
+            trustmebro_target.zip
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: roles-latest
+          name: Ludus Roles
+          body: |
+            Pre-packaged Ansible roles for Ludus.
+
+            ```bash
+            ludus ansible roles add trustmebro_devbox.zip
+            ludus ansible roles add trustmebro_target.zip
+            ```
+          files: |
+            trustmebro_devbox.zip
+            trustmebro_target.zip
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

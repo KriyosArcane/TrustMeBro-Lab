@@ -63,20 +63,14 @@
     content: |
       TrustMeBro DEF CON Lab Credentials
       ===================================
-      Domain: trustme.lab
-      Domain Admin: TRUSTME\domainadmin / TrustMe@Lab2026
-      Domain User:  TRUSTME\demouser / Demo@User2026
       Local Admin:  localuser / password
 
-      Elastic Stack: https://{{ elastic_ip }}:5601
+      Elastic Stack: https://ELASTIC_IP:5601
       Elastic User:  elastic
       Elastic Pass:  TrustMeBro2026!
 
-      Target: {{ target_ip }}
-      DevBox: {{ devbox_ip }}
+      Target: TARGET_IP (localuser / password)
+      DevBox: this machine
+      Kali:   kali / kali
     dest: C:\Demo\lab_creds.txt
-  vars:
-    elastic_ip: "10.{{ range_id_int }}.20.2"
-    target_ip: "10.{{ range_id_int }}.10.30"
-    devbox_ip: "10.{{ range_id_int }}.10.20"
   ignore_errors: true

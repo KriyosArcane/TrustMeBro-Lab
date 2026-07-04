@@ -6,16 +6,17 @@ Live demonstration environment for Authenticode signature manipulation and SIP h
 
 | Machine | OS | IP (last octet) | Purpose |
 |---|---|---|---|
-| DC01 | Windows Server 2022 | .11 | Domain controller (trustme.lab) |
 | DEVBOX | Windows 11 | .20 | Operator machine. TrustMeBro installed, Defender disabled, toolchain ready. |
-| TARGET | Windows 11 | .30 | Victim. Elastic EDR enrolled, Defender active, domain-joined. |
+| TARGET | Windows 11 | .30 | Victim. Elastic EDR enrolled, Defender active. |
 | Elastic | Debian 12 | 20.2 | Elasticsearch + Kibana + Fleet. Security rules enabled. |
 | Kali | Kali Linux | 99.1 | Attacker pivot for remote Impacket demos. |
+
+No domain controller. All machines are workgroup-joined. Nothing in the demo touches AD.
 
 ## Prerequisites
 
 - Ludus server with Proxmox (16+ cores, 64GB+ RAM recommended)
-- Templates built: `win11-22h2-x64-enterprise-template`, `win2022-server-x64-template`, `debian-12-x64-server-template`, `kali-x64-desktop-template`
+- Templates built: `win11-22h2-x64-enterprise-template`, `debian-12-x64-server-template`, `kali-x64-desktop-template`
 - Ludus community roles installed:
   ```
   ludus ansible roles add badsectorlabs.ludus_elastic_container
@@ -57,8 +58,8 @@ ludus user wireguard | tee ludus.conf
 | Machine | Access | Credentials |
 |---|---|---|
 | DEVBOX | RDP | localuser / password |
-| TARGET | RDP | TRUSTME\demouser / Demo@User2026 |
-| TARGET (admin) | RDP | TRUSTME\domainadmin / TrustMe@Lab2026 |
+| TARGET | RDP | localuser / password |
+| TARGET (admin) | RDP | localuser / password |
 | Elastic Kibana | Browser | https://ELASTIC_IP:5601, elastic / TrustMeBro2026! |
 | Kali | SSH or KasmVNC (port 8444) | kali / kali |
 

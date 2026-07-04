@@ -1,26 +1,10 @@
 # yaml-language-server: $schema=https://docs.ludus.cloud/schemas/range-config.json
 
 # TrustMeBro DEF CON Lab
-# Demonstrates Authenticode manipulation and SIP hijacking defeating Elastic EDR
+# Authenticode manipulation and SIP hijacking defeating Elastic EDR
+# No domain. All machines are workgroup-joined.
 
 ludus:
-  # ── Domain Controller ──────────────────────────────────────────────
-  - vm_name: "{{ range_id }}-dc01"
-    hostname: "{{ range_id }}-DC01"
-    template: win2022-server-x64-template
-    vlan: 10
-    ip_last_octet: 11
-    ram_gb: 4
-    cpus: 2
-    windows:
-      sysprep: true
-    domain:
-      fqdn: trustme.lab
-      role: primary-dc
-    testing:
-      snapshot: true
-      block_internet: false
-
   # ── DevBox (Operator) ──────────────────────────────────────────────
   - vm_name: "{{ range_id }}-devbox"
     hostname: "{{ range_id }}-DEVBOX"
@@ -36,9 +20,6 @@ ludus:
         - python3
         - git
         - osslsigncode
-    domain:
-      fqdn: trustme.lab
-      role: member
     testing:
       snapshot: true
       block_internet: false
@@ -55,9 +36,6 @@ ludus:
     cpus: 4
     windows:
       sysprep: true
-    domain:
-      fqdn: trustme.lab
-      role: member
     testing:
       snapshot: true
       block_internet: true
@@ -102,7 +80,6 @@ ludus:
 network:
   inter_vlan_default: REJECT
   rules:
-    # DevBox and Kali reach Target
     - name: DevBox to Target
       vlan_src: 10
       ip_last_octet_src: 20
@@ -119,7 +96,6 @@ network:
       protocol: all
       ports: all
       action: ACCEPT
-    # All machines reach Elastic
     - name: VLAN 10 to Elastic
       vlan_src: 10
       vlan_dst: 20
@@ -132,10 +108,3 @@ network:
       protocol: tcp
       ports: 443,5601,8220,9200
       action: ACCEPT
-
-defaults:
-  ad_domain_functional_level: Win2012R2
-  ad_domain_admin: domainadmin
-  ad_domain_admin_password: "TrustMe@Lab2026"
-  ad_domain_user: demouser
-  ad_domain_user_password: "Demo@User2026"

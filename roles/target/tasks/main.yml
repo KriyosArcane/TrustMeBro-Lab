@@ -25,14 +25,6 @@
     dest: C:\DemoFiles\signed_carrier.exe
     remote_src: true
 
-- name: Create standard user account for demo
-  ansible.windows.win_user:
-    name: analyst
-    password: "Analyst@2026"
-    groups:
-      - Users
-    state: present
-  ignore_errors: true
 
 - name: Create temp directory for tool output
   ansible.windows.win_file:

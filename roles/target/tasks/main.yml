@@ -1,0 +1,49 @@
+---
+# Target setup: victim machine with Elastic EDR
+# Stages test binaries, creates user accounts, pre-builds demo artifacts
+
+- name: Create demo staging directory
+  ansible.windows.win_file:
+    path: C:\DemoFiles
+    state: directory
+
+- name: Stage unsigned test binary
+  ansible.windows.win_copy:
+    src: C:\Windows\System32\notepad.exe
+    dest: C:\DemoFiles\unsigned_app.exe
+    remote_src: true
+
+- name: Stage self-signed test binary (placeholder)
+  ansible.windows.win_copy:
+    content: "MZ"
+    dest: C:\DemoFiles\selfsigned_app.exe
+  ignore_errors: true
+
+- name: Stage Microsoft-signed binary for embed demo
+  ansible.windows.win_copy:
+    src: C:\Windows\explorer.exe
+    dest: C:\DemoFiles\signed_carrier.exe
+    remote_src: true
+
+- name: Create standard user account for demo
+  ansible.windows.win_user:
+    name: analyst
+    password: "Analyst@2026"
+    groups:
+      - Users
+    state: present
+  ignore_errors: true
+
+- name: Create temp directory for tool output
+  ansible.windows.win_file:
+    path: C:\Temp
+    state: directory
+
+- name: Verify Defender is running
+  ansible.windows.win_shell: |
+    Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled, AntivirusEnabled | Format-List
+  register: defender_status
+
+- name: Print Defender status
+  ansible.builtin.debug:
+    var: defender_status.stdout_lines

@@ -1,0 +1,105 @@
+---
+# reset.yml - Return the lab to clean demo state
+# Removes TrustMeBro artifacts from target, restores registry, clears alerts
+# Run: ansible-playbook reset.yml -i inventory
+
+- name: Reset Target Machine
+  hosts: target
+  tasks:
+    - name: Restore all SIP registry keys to defaults
+      ansible.windows.win_shell: |
+        $guids = @(
+          "{C689AAB8-8E78-11D0-8C47-00C04FC295EE}",
+          "{603BCC1F-4B59-4E08-B724-D2C6297EF351}",
+          "{000C10F1-0000-0000-C000-000000000046}",
+          "{1629F04E-2799-4DB5-8FE5-ACE10F17EBAB}",
+          "{06C9E010-38CE-11D4-A2A3-00104BD35090}",
+          "{1A610570-38CE-11D4-A2A3-00104BD35090}",
+          "{C689AABA-8E78-11D0-8C47-00C04FC295EE}",
+          "{DE351A43-8E59-11D0-8C47-00C04FC295EE}",
+          "{0AC5DF4B-CE07-4DE2-B76E-23C839A09FD1}"
+        )
+        foreach ($guid in $guids) {
+          $path = "HKLM:\SOFTWARE\Microsoft\Cryptography\OID\EncodingType 0\CryptSIPDllVerifyIndirectData\$guid"
+          if (Test-Path $path) {
+            Set-ItemProperty -Path $path -Name "Dll" -Value "WINTRUST.DLL" -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $path -Name "FuncName" -Value "CryptSIPVerifyIndirectData" -ErrorAction SilentlyContinue
+          }
+          $wow = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Cryptography\OID\EncodingType 0\CryptSIPDllVerifyIndirectData\$guid"
+          if (Test-Path $wow) {
+            Set-ItemProperty -Path $wow -Name "Dll" -Value "WINTRUST.DLL" -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $wow -Name "FuncName" -Value "CryptSIPVerifyIndirectData" -ErrorAction SilentlyContinue
+          }
+        }
+      ignore_errors: true
+
+    - name: Restore FinalPolicy to default
+      ansible.windows.win_shell: |
+        $path = "HKLM:\SOFTWARE\Microsoft\Cryptography\Providers\Trust\FinalPolicy\{00AAC56B-CD44-11d0-8CC2-00C04FC295EE}"
+        Set-ItemProperty -Path $path -Name '$DLL' -Value "WINTRUST.DLL"
+        Set-ItemProperty -Path $path -Name '$Function' -Value "SoftpubAuthenticode"
+      ignore_errors: true
+
+    - name: Remove FormatGhost OID handler
+      ansible.windows.win_shell: |
+        Remove-Item -Path "HKLM:\SOFTWARE\Microsoft\Cryptography\OID\EncodingType 0\CryptDllFormatObject\1.3.6.1.4.1.311.99.1" -Recurse -Force -ErrorAction SilentlyContinue
+      ignore_errors: true
+
+    - name: Remove any sip-exec implant registrations
+      ansible.windows.win_shell: |
+        # Remove non-standard IsMyFileType2 entries (keep system ones)
+        $standard = @("{000C10F1*","{06C9E010*","{0AC5DF4B*","{0F5F58B3*","{1629F04E*","{1A610570*","{5598CFF1*","{603BCC1F*","{9F3053C5*","{C689AAB8*","{CF78C6DE*","{D1D04F0C*")
+        $base = "HKLM:\SOFTWARE\Microsoft\Cryptography\OID\EncodingType 0\CryptSIPDllIsMyFileType2"
+        Get-ChildItem $base -ErrorAction SilentlyContinue | ForEach-Object {
+          $name = $_.PSChildName
+          $isStandard = $false
+          foreach ($s in $standard) { if ($name -like $s) { $isStandard = $true; break } }
+          if (-not $isStandard) { Remove-Item $_.PSPath -Recurse -Force }
+        }
+      ignore_errors: true
+
+    - name: Clean temp files
+      ansible.windows.win_shell: |
+        Remove-Item C:\Temp\*.exe -Force -ErrorAction SilentlyContinue
+        Remove-Item C:\Temp\*.dll -Force -ErrorAction SilentlyContinue
+        Remove-Item C:\Temp\*.bin -Force -ErrorAction SilentlyContinue
+        Remove-Item C:\Temp\sigstash_out.bin -Force -ErrorAction SilentlyContinue
+        Remove-Item C:\Temp\format_ghost_payload.bin -Force -ErrorAction SilentlyContinue
+      ignore_errors: true
+
+    - name: Re-stage test binaries
+      ansible.windows.win_copy:
+        src: C:\Windows\System32\notepad.exe
+        dest: C:\DemoFiles\unsigned_app.exe
+        remote_src: true
+
+    - name: Re-stage signed carrier
+      ansible.windows.win_copy:
+        src: C:\Windows\explorer.exe
+        dest: C:\DemoFiles\signed_carrier.exe
+        remote_src: true
+
+    - name: Print reset status
+      ansible.builtin.debug:
+        msg: "Target reset complete. SIP keys restored, FinalPolicy restored, temp files cleaned, test binaries re-staged."
+
+- name: Clear Elastic Alerts
+  hosts: elastic
+  tasks:
+    - name: Delete Elastic security alerts index
+      ansible.builtin.uri:
+        url: "https://localhost:9200/.internal.alerts-security*/_delete_by_query"
+        method: POST
+        body_format: json
+        body:
+          query:
+            match_all: {}
+        user: elastic
+        password: "TrustMeBro2026!"
+        validate_certs: false
+        status_code: [200, 409]
+      ignore_errors: true
+
+    - name: Print alert clear status
+      ansible.builtin.debug:
+        msg: "Elastic alerts cleared."

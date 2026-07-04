@@ -1,0 +1,82 @@
+---
+# DevBox setup: operator machine for TrustMeBro demos
+# Disables Defender, installs toolchain, clones repo, stages donor binaries
+
+- name: Disable Windows Defender real-time protection
+  ansible.windows.win_shell: |
+    Set-MpPreference -DisableRealtimeMonitoring $true
+    Set-MpPreference -DisableBehaviorMonitoring $true
+    Set-MpPreference -DisableBlockAtFirstSeen $true
+    Set-MpPreference -DisableIOAVProtection $true
+    Set-MpPreference -DisableScriptScanning $true
+    Set-MpPreference -SubmitSamplesConsent 2
+    New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name DisableAntiSpyware -Value 1 -PropertyType DWORD -Force
+  ignore_errors: true
+
+- name: Disable AMSI
+  ansible.windows.win_shell: |
+    New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\AMSI\Providers" -Name DisableAMSI -Value 1 -PropertyType DWORD -Force -ErrorAction SilentlyContinue
+  ignore_errors: true
+
+- name: Install Python packages
+  ansible.windows.win_shell: |
+    pip install asn1crypto impacket
+  ignore_errors: true
+
+- name: Create demo directory
+  ansible.windows.win_file:
+    path: C:\Demo
+    state: directory
+
+- name: Clone TrustMeBro repo
+  ansible.windows.win_shell: |
+    cd C:\Demo
+    git clone https://github.com/KriyosArcane/TrustMeBro.git
+    git clone https://github.com/KriyosArcane/TrustMeBOF.git
+  ignore_errors: true
+
+- name: Stage donor binaries for signature stealing
+  ansible.windows.win_copy:
+    src: "{{ item.src }}"
+    dest: "C:\\Demo\\donors\\{{ item.name }}"
+    remote_src: true
+  loop:
+    - { src: 'C:\Windows\explorer.exe', name: 'explorer.exe' }
+    - { src: 'C:\Windows\System32\notepad.exe', name: 'notepad.exe' }
+    - { src: 'C:\Windows\System32\mspaint.exe', name: 'mspaint.exe' }
+    - { src: 'C:\Windows\System32\calc.exe', name: 'calc.exe' }
+  ignore_errors: true
+
+- name: Create test payload file
+  ansible.windows.win_copy:
+    content: "DEFCON_DEMO_PAYLOAD_TRUSTMEBRO_2026"
+    dest: C:\Demo\payload.bin
+
+- name: Create unsigned test binary
+  ansible.windows.win_copy:
+    src: C:\Windows\System32\notepad.exe
+    dest: C:\Demo\unsigned_agent.exe
+    remote_src: true
+
+- name: Write lab credentials file
+  ansible.windows.win_copy:
+    content: |
+      TrustMeBro DEF CON Lab Credentials
+      ===================================
+      Domain: trustme.lab
+      Domain Admin: TRUSTME\domainadmin / TrustMe@Lab2026
+      Domain User:  TRUSTME\demouser / Demo@User2026
+      Local Admin:  localuser / password
+
+      Elastic Stack: https://{{ elastic_ip }}:5601
+      Elastic User:  elastic
+      Elastic Pass:  TrustMeBro2026!
+
+      Target: {{ target_ip }}
+      DevBox: {{ devbox_ip }}
+    dest: C:\Demo\lab_creds.txt
+  vars:
+    elastic_ip: "10.{{ range_id_int }}.20.2"
+    target_ip: "10.{{ range_id_int }}.10.30"
+    devbox_ip: "10.{{ range_id_int }}.10.20"
+  ignore_errors: true

@@ -71,6 +71,7 @@ ludus:
     ip_last_octet: 40
     ram_gb: 6
     cpus: 4
+    linux: true
     testing:
       snapshot: true
       block_internet: false

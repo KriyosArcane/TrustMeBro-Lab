@@ -6,12 +6,12 @@ Live demonstration environment for Authenticode signature manipulation and SIP h
 
 | Machine | OS | IP (last octet) | Purpose |
 |---|---|---|---|
-| DEVBOX | Windows 11 | .20 | Operator machine. TrustMeBro installed, Defender disabled, toolchain ready. |
+| DEVBOX | Windows 11 | .20 | Operator. TrustMeBro installed, Defender disabled, toolchain ready. |
 | TARGET | Windows 11 | .30 | Victim. Elastic EDR enrolled, Defender active. |
-| Elastic | Debian 12 | 20.2 | Elasticsearch + Kibana + Fleet. Security rules enabled. |
-| Kali | Kali Linux | 99.1 | Attacker pivot for remote Impacket demos. |
+| Elastic | Debian 12 | .10 | Elasticsearch + Kibana + Fleet. |
+| Kali | Kali Linux | .99 | Attacker pivot for remote Impacket demos. |
 
-No domain controller. All machines are workgroup-joined. Nothing in the demo touches AD.
+All machines on VLAN 10. Flat network. No firewall on Windows machines. SSH, RDP, WinRM, and SMB enabled on both Windows boxes.
 
 ## Elastic Defend Mode
 

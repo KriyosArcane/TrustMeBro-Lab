@@ -1,6 +1,30 @@
 ---
 # Target setup: victim machine with Elastic EDR
-# Stages test binaries, creates user accounts, pre-builds demo artifacts
+# Disables firewall, enables SSH/RDP/WinRM/SMB, stages test binaries
+
+- name: Disable Windows Firewall (all profiles)
+  ansible.windows.win_shell: |
+    Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+
+- name: Enable WinRM
+  ansible.windows.win_shell: |
+    Enable-PSRemoting -Force -SkipNetworkProfileCheck
+    Set-Item WSMan:\localhost\Client\TrustedHosts -Value "*" -Force
+
+- name: Enable SSH server
+  ansible.windows.win_shell: |
+    Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0 -ErrorAction SilentlyContinue
+    Start-Service sshd -ErrorAction SilentlyContinue
+    Set-Service -Name sshd -StartupType Automatic -ErrorAction SilentlyContinue
+  ignore_errors: true
+
+- name: Ensure RDP is enabled
+  ansible.windows.win_shell: |
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+
+- name: Ensure SMB is accessible
+  ansible.windows.win_shell: |
+    Set-SmbServerConfiguration -EnableSMB2Protocol $true -Force
 
 - name: Create demo staging directory
   ansible.windows.win_file:

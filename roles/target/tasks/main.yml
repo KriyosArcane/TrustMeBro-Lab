@@ -1,57 +1,75 @@
 ---
 # Target setup: victim machine with Elastic EDR
-# Disables firewall, enables SSH, stages test binaries
-# NOTE: WinRM and RDP are already enabled by Ludus. Do not restart WinRM.
+#
+# RELIABILITY RULES FOR 50+ INSTANCE DEPLOYMENT:
+# - Never restart WinRM, RDP, or any Ludus management service
+# - Every task must be idempotent
+# - No ignore_errors on critical tasks
+# - Retries on network-dependent operations
 
-- name: Disable Windows Firewall (all profiles)
+# ── Firewall: disable on all profiles ────────────────────────────────
+- name: Disable Windows Firewall
+  ansible.windows.win_firewall:
+    state: disabled
+    profiles:
+      - Domain
+      - Private
+      - Public
+
+# ── SSH: install if not present ──────────────────────────────────────
+- name: Check if OpenSSH server is installed
   ansible.windows.win_shell: |
-    Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+    (Get-WindowsCapability -Online -Name OpenSSH.Server*).State
+  register: ssh_state
+  changed_when: false
 
-- name: Enable SSH server
+- name: Install OpenSSH server
   ansible.windows.win_shell: |
-    Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0 -ErrorAction SilentlyContinue
-    Start-Service sshd -ErrorAction SilentlyContinue
-    Set-Service -Name sshd -StartupType Automatic -ErrorAction SilentlyContinue
-  ignore_errors: true
+    Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+  when: "'Installed' not in ssh_state.stdout"
+  register: ssh_install
+  retries: 3
+  delay: 10
+  until: ssh_install is not failed
 
-- name: Ensure SMB is accessible
-  ansible.windows.win_shell: |
-    Set-SmbServerConfiguration -EnableSMB2Protocol $true -Force
+- name: Start and enable sshd
+  ansible.windows.win_service:
+    name: sshd
+    start_mode: auto
+    state: started
 
-- name: Create demo staging directory
+# ── Demo directories ─────────────────────────────────────────────────
+- name: Create demo directories
   ansible.windows.win_file:
-    path: C:\DemoFiles
+    path: "{{ item }}"
     state: directory
+  loop:
+    - C:\DemoFiles
+    - C:\Temp
 
+# ── Stage test binaries ──────────────────────────────────────────────
 - name: Stage unsigned test binary
   ansible.windows.win_copy:
     src: C:\Windows\System32\notepad.exe
     dest: C:\DemoFiles\unsigned_app.exe
     remote_src: true
+    force: false
 
-- name: Stage self-signed test binary (placeholder)
-  ansible.windows.win_copy:
-    content: "MZ"
-    dest: C:\DemoFiles\selfsigned_app.exe
-  ignore_errors: true
-
-- name: Stage Microsoft-signed binary for embed demo
+- name: Stage signed carrier binary
   ansible.windows.win_copy:
     src: C:\Windows\explorer.exe
     dest: C:\DemoFiles\signed_carrier.exe
     remote_src: true
+    force: false
 
-
-- name: Create temp directory for tool output
-  ansible.windows.win_file:
-    path: C:\Temp
-    state: directory
-
-- name: Verify Defender is running
+# ── Verify Defender is running (target should have it active) ────────
+- name: Check Defender status
   ansible.windows.win_shell: |
-    Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled, AntivirusEnabled | Format-List
-  register: defender_status
+    (Get-MpComputerStatus).RealTimeProtectionEnabled
+  register: defender_check
+  changed_when: false
+  failed_when: false
 
-- name: Print Defender status
+- name: Report Defender status
   ansible.builtin.debug:
-    var: defender_status.stdout_lines
+    msg: "Defender RealTime Protection: {{ defender_check.stdout | trim }}"

@@ -31,7 +31,7 @@ ludus:
     template: debian-11-x64-server-template
     vlan: 10
     ip_last_octet: 10
-    ram_gb: 8
+    ram_gb: 10
     cpus: 4
     linux: true
     testing:
@@ -69,9 +69,8 @@ ludus:
     template: kali-x64-desktop-template
     vlan: 10
     ip_last_octet: 99
-    ram_gb: 4
-    cpus: 2
-    linux: true
+    ram_gb: 6
+    cpus: 4
     testing:
       snapshot: true
       block_internet: false

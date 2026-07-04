@@ -1,15 +1,11 @@
 ---
 # DevBox setup: operator machine for TrustMeBro demos
-# Disables Defender + firewall, enables SSH/RDP/WinRM/SMB, installs toolchain
+# Disables Defender + firewall, enables SSH, installs toolchain
+# NOTE: WinRM and RDP are already enabled by Ludus. Do not restart WinRM.
 
 - name: Disable Windows Firewall (all profiles)
   ansible.windows.win_shell: |
     Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
-
-- name: Enable WinRM
-  ansible.windows.win_shell: |
-    Enable-PSRemoting -Force -SkipNetworkProfileCheck
-    Set-Item WSMan:\localhost\Client\TrustedHosts -Value "*" -Force
 
 - name: Enable SSH server
   ansible.windows.win_shell: |
@@ -17,11 +13,6 @@
     Start-Service sshd -ErrorAction SilentlyContinue
     Set-Service -Name sshd -StartupType Automatic -ErrorAction SilentlyContinue
   ignore_errors: true
-
-- name: Ensure RDP is enabled
-  ansible.windows.win_shell: |
-    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-    Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
 
 - name: Ensure SMB is accessible
   ansible.windows.win_shell: |

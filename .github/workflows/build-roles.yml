@@ -16,18 +16,18 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Package devbox role
-        run: cd roles && tar czf ../trustmebro_devbox.tar.gz devbox/
+        run: cd roles && tar cf ../trustmebro_devbox.tar devbox/
 
       - name: Package target role
-        run: cd roles && tar czf ../trustmebro_target.tar.gz target/
+        run: cd roles && tar cf ../trustmebro_target.tar target/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ludus-roles
           path: |
-            trustmebro_devbox.tar.gz
-            trustmebro_target.tar.gz
+            trustmebro_devbox.tar
+            trustmebro_target.tar
 
       - name: Create or update release
         uses: softprops/action-gh-release@v2
@@ -38,12 +38,12 @@ jobs:
             Pre-packaged Ansible roles for Ludus.
 
             ```bash
-            ludus ansible roles add trustmebro_devbox.tar.gz
-            ludus ansible roles add trustmebro_target.tar.gz
+            ludus ansible roles add trustmebro_devbox.tar
+            ludus ansible roles add trustmebro_target.tar
             ```
           files: |
-            trustmebro_devbox.tar.gz
-            trustmebro_target.tar.gz
+            trustmebro_devbox.tar
+            trustmebro_target.tar
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

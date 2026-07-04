@@ -7,7 +7,71 @@
 # - Every task must be idempotent (safe to run twice)
 # - No ignore_errors on critical tasks
 # - Retries on network-dependent operations
-# - No operations that require reboot
+
+# ── Defender: nuke it (flarevm approach, must run FIRST) ─────────────
+# Tamper Protection on Win11 blocks Set-MpPreference and registry writes.
+# This uses the privacy.sexy bat from badsectorlabs/ludus_flarevm:
+# 1. Add C:\ exclusion (works even with Tamper Protection)
+# 2. Check Tamper Protection status
+# 3. If enabled, run the nuclear disable_defender.bat + reboot
+# 4. Registry keys as belt-and-suspenders
+
+- name: Add whole-drive Defender exclusion (bypasses Tamper Protection)
+  ansible.windows.win_powershell:
+    script: |
+      Add-MpPreference -ExclusionPath 'C:\' -ErrorAction SilentlyContinue
+  failed_when: false
+
+- name: Check Tamper Protection status
+  ansible.windows.win_shell: |
+    (Get-MpComputerStatus).IsTamperProtected
+  register: tamper_protection_result
+  failed_when: false
+  changed_when: false
+
+- name: Set tamper protection fact
+  ansible.builtin.set_fact:
+    tamper_protection_enabled: "{{ true if tamper_protection_result.stdout is defined and 'True' in tamper_protection_result.stdout else false }}"
+
+- name: Run privacy.sexy Defender kill script
+  ansible.builtin.script:
+    cmd: disable_defender.bat
+  register: disable_defender_result
+  failed_when: false
+  when: tamper_protection_enabled
+
+- name: Reboot after Defender kill (required for driver removal)
+  ansible.windows.win_reboot:
+  when: tamper_protection_enabled and disable_defender_result is changed
+
+- name: Disable Defender via Group Policy registry keys
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender
+    name: DisableAntiSpyware
+    data: 1
+    type: dword
+  failed_when: false
+
+- name: Disable Defender real-time monitoring via registry
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection
+    name: "{{ item }}"
+    data: 1
+    type: dword
+  loop:
+    - DisableRealtimeMonitoring
+    - DisableBehaviorMonitoring
+    - DisableOnAccessProtection
+    - DisableScanOnRealtimeEnable
+    - DisableIOAVProtection
+  failed_when: false
+
+- name: Stop Defender service (best effort, post-reboot)
+  ansible.windows.win_shell: |
+    Stop-Service -Name WinDefend -Force -ErrorAction SilentlyContinue
+    Set-Service -Name WinDefend -StartupType Disabled -ErrorAction SilentlyContinue
+  changed_when: false
+  failed_when: false
 
 # ── Firewall: disable on all profiles ────────────────────────────────
 - name: Disable Windows Firewall
@@ -41,54 +105,6 @@
     name: sshd
     start_mode: auto
     state: started
-  failed_when: false
-
-# ── Defender: disable all protections ────────────────────────────────
-# Tamper Protection blocks Set-MpPreference and registry writes to Defender keys.
-# Strategy: (1) Add C:\ exclusion (works WITH Tamper Protection), (2) registry
-# keys for full disable (take effect after next reboot), (3) best-effort stop.
-
-- name: Add whole-drive Defender exclusion (bypasses Tamper Protection)
-  ansible.windows.win_powershell:
-    script: |
-      Add-MpPreference -ExclusionPath 'C:\' -ErrorAction SilentlyContinue
-  failed_when: false
-
-- name: Disable Defender via Group Policy registry keys
-  ansible.windows.win_regedit:
-    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender
-    name: DisableAntiSpyware
-    data: 1
-    type: dword
-  failed_when: false
-
-- name: Disable Defender real-time monitoring via registry
-  ansible.windows.win_regedit:
-    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection
-    name: "{{ item }}"
-    data: 1
-    type: dword
-  loop:
-    - DisableRealtimeMonitoring
-    - DisableBehaviorMonitoring
-    - DisableOnAccessProtection
-    - DisableScanOnRealtimeEnable
-    - DisableIOAVProtection
-  failed_when: false
-
-- name: Disable Defender SmartScreen
-  ansible.windows.win_regedit:
-    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\SmartScreen
-    name: ConfigureAppInstallControlEnabled
-    data: 0
-    type: dword
-  failed_when: false
-
-- name: Stop Defender service (best effort)
-  ansible.windows.win_shell: |
-    Stop-Service -Name WinDefend -Force -ErrorAction SilentlyContinue
-    Set-Service -Name WinDefend -StartupType Disabled -ErrorAction SilentlyContinue
-  changed_when: false
   failed_when: false
 
 # ── Python packages ──────────────────────────────────────────────────

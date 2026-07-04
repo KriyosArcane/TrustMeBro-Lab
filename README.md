@@ -13,6 +13,29 @@ Live demonstration environment for Authenticode signature manipulation and SIP h
 
 No domain controller. All machines are workgroup-joined. Nothing in the demo touches AD.
 
+## Elastic Defend Mode
+
+The lab deploys with Elastic Defend in **detect mode** (alert only, no blocking). This lets you demonstrate techniques without the agent killing your processes.
+
+```bash
+# Check current mode
+./scripts/elastic-mode.sh status
+
+# Switch to prevent (active blocking)
+./scripts/elastic-mode.sh prevent
+
+# Switch back to detect (alert only)
+./scripts/elastic-mode.sh detect
+```
+
+Run from the Elastic machine or any machine with curl access to Kibana. Set `ELASTIC_HOST` and `ELASTIC_PASS` if running remotely:
+
+```bash
+ELASTIC_HOST=https://10.X.20.2:5601 ELASTIC_PASS=TrustMeBro2026! ./scripts/elastic-mode.sh prevent
+```
+
+This toggles malware, behavior, memory, and ransomware protections all at once across all platforms (Windows, Mac, Linux).
+
 ## Prerequisites
 
 - Ludus server with Proxmox (16+ cores, 64GB+ RAM recommended)

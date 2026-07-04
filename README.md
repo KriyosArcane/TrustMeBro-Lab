@@ -9,9 +9,25 @@ Live demonstration environment for Authenticode signature manipulation and SIP h
 | DEVBOX | Windows 11 | .20 | Operator. TrustMeBro installed, Defender disabled, toolchain ready. |
 | TARGET | Windows 11 | .30 | Victim. Elastic EDR enrolled, Defender active. |
 | Elastic | Debian 12 | .10 | Elasticsearch + Kibana + Fleet. |
-| Kali | Kali Linux | .99 | Attacker pivot for remote Impacket demos. |
+| Kali | Kali Linux | .40 | Attacker pivot for remote Impacket demos. |
 
 All machines on VLAN 10. Flat network. No firewall on Windows machines. SSH, RDP, WinRM, and SMB enabled on both Windows boxes.
+
+## Student QoL
+
+Everything is pre-configured so students never hunt for a URL, password, or command.
+
+- Edge opens Kibana automatically on both Windows machines (homepage + startup URL)
+- Lab bookmarks folder in Edge with Kibana Dashboard, Alerts, and GitHub links
+- `lab_creds.txt` on every Windows Desktop with all IPs, usernames, and passwords
+- `START_HERE.txt` on DevBox Desktop with every lab step and the exact command to run
+- TrustMeBro shortcut and terminal shortcut on DevBox Desktop
+- Process Monitor pre-installed on TARGET with a filter file scoped to WinVerifyTrust and registry activity
+- Event Viewer shortcut on TARGET Desktop
+- RDP enabled on both Windows machines (students connect from Kali or their laptop)
+- Edge first-run experience suppressed (no setup wizard on first launch)
+- Kibana default time window set to 15 minutes (recent activity always visible)
+- Kibana dark mode enabled (better for projector/screen sharing)
 
 ## Elastic Defend Mode
 
@@ -72,6 +88,15 @@ ludus range deploy
 ludus range status
 ```
 
+### 6. Configure Kibana (after deploy completes)
+
+```bash
+# From any machine with curl access to 10.1.10.10
+./scripts/setup-kibana-dashboard.sh
+```
+
+This sets the default time window to 15 minutes, enables dark mode, and creates saved searches for process creation and registry modification events.
+
 Role zips are built automatically by GitHub Actions on every push to `roles/`. You do not need to clone the repo.
 
 ## Accessing Machines
@@ -90,7 +115,7 @@ ludus user wireguard | tee ludus.conf
 | Elastic Kibana | Browser | https://ELASTIC_IP:5601, elastic / TrustMeBro2026! |
 | Kali | SSH or KasmVNC (port 8444) | kali / kali |
 
-Credentials are also saved to `C:\Demo\lab_creds.txt` on DEVBOX.
+Credentials are also saved to `lab_creds.txt` on every Windows Desktop (user Desktop and Public Desktop).
 
 ## Demo Reset
 
@@ -199,8 +224,16 @@ TrustMeBro-Lab/
 ├── range-config.yml          Ludus range configuration
 ├── reset.yml                 Demo reset playbook
 ├── roles/
-│   ├── devbox/tasks/main.yml DevBox provisioning (Defender disable, toolchain, repo clone)
-│   └── target/tasks/main.yml Target provisioning (test binary staging, user accounts)
+│   ├── devbox/
+│   │   ├── tasks/main.yml    DevBox provisioning (Defender kill, Edge, repos, Desktop)
+│   │   ├── files/            disable_defender.bat (privacy.sexy)
+│   │   └── meta/main.yml
+│   └── target/
+│       ├── tasks/main.yml    Target provisioning (Edge, ProcMon, filter file, creds)
+│       └── meta/main.yml
+├── scripts/
+│   ├── elastic-mode.sh       Toggle Elastic Defend detect/prevent mode
+│   └── setup-kibana-dashboard.sh  Configure Kibana saved searches + defaults
 ├── LICENSE
 └── README.md
 ```

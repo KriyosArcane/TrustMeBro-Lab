@@ -6,6 +6,7 @@
 # - Every task must be idempotent
 # - No ignore_errors on critical tasks
 # - Retries on network-dependent operations
+# - Defender stays ON (this is the victim machine with EDR)
 
 # ── Firewall: disable on all profiles ────────────────────────────────
 - name: Disable Windows Firewall
@@ -15,6 +16,21 @@
       - Domain
       - Private
       - Public
+
+# ── RDP: ensure enabled ─────────────────────────────────────────────
+- name: Enable RDP via registry
+  ansible.windows.win_regedit:
+    path: HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server
+    name: fDenyTSConnections
+    data: 0
+    type: dword
+
+- name: Enable RDP Network Level Authentication
+  ansible.windows.win_regedit:
+    path: HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp
+    name: UserAuthentication
+    data: 1
+    type: dword
 
 # ── SSH: install if not present ──────────────────────────────────────
 - name: Check if OpenSSH server is installed
@@ -41,6 +57,56 @@
     state: started
   failed_when: false
 
+# ── Edge: Kibana homepage + bookmarks ────────────────────────────────
+- name: Set Edge homepage to Kibana
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Edge
+    name: HomepageLocation
+    data: "https://10.1.10.10:5601"
+    type: string
+
+- name: Set Edge to show homepage on startup
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Edge
+    name: HomepageIsNewTabPage
+    data: 0
+    type: dword
+
+- name: Set Edge startup action to open specific pages
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Edge
+    name: RestoreOnStartup
+    data: 4
+    type: dword
+
+- name: Set Edge startup URL to Kibana
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Edge\RestoreOnStartupURLs
+    name: "1"
+    data: "https://10.1.10.10:5601"
+    type: string
+
+- name: Set Edge managed bookmarks (Lab folder)
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Edge
+    name: ManagedFavorites
+    data: '[{"toplevel_name":"Lab"},{"name":"Kibana Dashboard","url":"https://10.1.10.10:5601/app/security/overview"},{"name":"Elastic Alerts","url":"https://10.1.10.10:5601/app/security/alerts"}]'
+    type: string
+
+- name: Suppress Edge first-run experience
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Edge
+    name: HideFirstRunExperience
+    data: 1
+    type: dword
+
+- name: Allow insecure localhost (self-signed Kibana cert)
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Edge
+    name: SSLErrorOverrideAllowed
+    data: 1
+    type: dword
+
 # ── Demo directories ─────────────────────────────────────────────────
 - name: Create demo directories
   ansible.windows.win_file:
@@ -65,6 +131,89 @@
     remote_src: true
     force: false
 
+# ── Process Monitor: install + filter file ───────────────────────────
+- name: Install Process Monitor via Chocolatey
+  chocolatey.chocolatey.win_chocolatey:
+    name: procmon
+    state: present
+  retries: 3
+  delay: 15
+  failed_when: false
+
+- name: Create ProcMon filter for WinVerifyTrust activity
+  ansible.windows.win_copy:
+    content: |
+      <?xml version="1.0" encoding="UTF-8"?>
+      <procmon>
+        <DestructiveFilter>0</DestructiveFilter>
+        <Filters>
+          <Filter>
+            <Column>Process Name</Column>
+            <Relation>is</Relation>
+            <action>include</action>
+            <Value>WinVerifyTrust</Value>
+          </Filter>
+          <Filter>
+            <Column>Path</Column>
+            <Relation>contains</Relation>
+            <action>include</action>
+            <Value>Microsoft\Cryptography\OID</Value>
+          </Filter>
+          <Filter>
+            <Column>Path</Column>
+            <Relation>contains</Relation>
+            <action>include</action>
+            <Value>Microsoft\Cryptography\Providers\Trust</Value>
+          </Filter>
+          <Filter>
+            <Column>Path</Column>
+            <Relation>contains</Relation>
+            <action>include</action>
+            <Value>CryptSvc</Value>
+          </Filter>
+          <Filter>
+            <Column>Operation</Column>
+            <Relation>is</Relation>
+            <action>include</action>
+            <Value>RegSetValue</Value>
+          </Filter>
+          <Filter>
+            <Column>Operation</Column>
+            <Relation>is</Relation>
+            <action>include</action>
+            <Value>RegQueryValue</Value>
+          </Filter>
+          <Filter>
+            <Column>Path</Column>
+            <Relation>contains</Relation>
+            <action>include</action>
+            <Value>WINTRUST</Value>
+          </Filter>
+          <Filter>
+            <Column>Path</Column>
+            <Relation>contains</Relation>
+            <action>include</action>
+            <Value>SoftwarePublishing</Value>
+          </Filter>
+        </Filters>
+      </procmon>
+    dest: C:\Users\Public\Desktop\TrustMeBro_Filter.PMF
+    force: true
+
+# ── Event Viewer shortcut ────────────────────────────────────────────
+- name: Create Event Viewer shortcut on Desktop
+  ansible.windows.win_shortcut:
+    src: C:\Windows\System32\eventvwr.msc
+    dest: C:\Users\Public\Desktop\Event Viewer.lnk
+    description: Event Viewer - Security and System logs
+  failed_when: false
+
+# ── TrustMeBro.exe on TARGET for cleanup ─────────────────────────────
+- name: Check if TrustMeBro binary exists on TARGET
+  ansible.windows.win_stat:
+    path: C:\Temp\TrustMeBro.exe
+  register: tmb_target
+
 # ── Verify Defender is running (target should have it active) ────────
 - name: Check Defender status
   ansible.windows.win_shell: |
@@ -76,3 +225,47 @@
 - name: Report Defender status
   ansible.builtin.debug:
     msg: "Defender RealTime Protection: {{ defender_check.stdout | trim }}"
+
+# ── Desktop: lab_creds.txt ───────────────────────────────────────────
+- name: Write lab credentials to Desktop
+  ansible.windows.win_copy:
+    content: |
+      ============================================
+       TrustMeBro DEF CON Lab - Credentials
+      ============================================
+
+      DEVBOX (Operator)     10.1.10.20    localuser / password
+      TARGET (Victim)       10.1.10.30    localuser / password
+      Elastic (Kibana)      10.1.10.10    elastic / TrustMeBro2026!
+      Kali (Attacker)       10.1.10.40    kali / kali
+
+      Kibana URL:  https://10.1.10.10:5601
+      Kibana user: elastic
+      Kibana pass: TrustMeBro2026!
+
+      RDP:  mstsc /v:10.1.10.20 (DEVBOX) or 10.1.10.30 (TARGET)
+      SSH:  ssh localuser@10.1.10.20 or ssh localuser@10.1.10.30
+    dest: C:\Users\localuser\Desktop\lab_creds.txt
+    force: true
+  failed_when: false
+
+- name: Write lab credentials to Public Desktop (fallback)
+  ansible.windows.win_copy:
+    content: |
+      ============================================
+       TrustMeBro DEF CON Lab - Credentials
+      ============================================
+
+      DEVBOX (Operator)     10.1.10.20    localuser / password
+      TARGET (Victim)       10.1.10.30    localuser / password
+      Elastic (Kibana)      10.1.10.10    elastic / TrustMeBro2026!
+      Kali (Attacker)       10.1.10.40    kali / kali
+
+      Kibana URL:  https://10.1.10.10:5601
+      Kibana user: elastic
+      Kibana pass: TrustMeBro2026!
+
+      RDP:  mstsc /v:10.1.10.20 (DEVBOX) or 10.1.10.30 (TARGET)
+      SSH:  ssh localuser@10.1.10.20 or ssh localuser@10.1.10.30
+    dest: C:\Users\Public\Desktop\lab_creds.txt
+    force: true

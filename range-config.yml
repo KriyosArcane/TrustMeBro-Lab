@@ -54,8 +54,6 @@ ludus:
     cpus: 4
     windows:
       sysprep: true
-      chocolatey_packages:
-        - procmon
     testing:
       snapshot: true
       block_internet: false

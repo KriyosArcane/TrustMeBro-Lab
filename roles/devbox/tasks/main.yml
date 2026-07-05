@@ -67,13 +67,22 @@
   failed_when: false
 
 # ── Firewall: disable on all profiles ────────────────────────────────
-- name: Disable Windows Firewall
+# win_firewall module fails if MpsSvc is dead (killed by disable_defender.bat)
+# Use netsh as primary, win_firewall as fallback
+- name: Disable Windows Firewall via netsh
+  ansible.windows.win_shell: |
+    netsh advfirewall set allprofiles state off 2>&1
+    exit 0
+  failed_when: false
+
+- name: Disable Windows Firewall via module (fallback)
   ansible.windows.win_firewall:
     state: disabled
     profiles:
       - Domain
       - Private
       - Public
+  failed_when: false
 
 # ── RDP: ensure enabled ─────────────────────────────────────────────
 - name: Enable RDP via registry

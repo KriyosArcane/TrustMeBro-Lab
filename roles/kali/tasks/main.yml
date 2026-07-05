@@ -56,6 +56,32 @@
   ansible.builtin.command: tailscale set --advertise-routes=10.1.10.0/24
   failed_when: false
 
+# ── RDP: install xrdp ────────────────────────────────────────────────
+- name: Install xrdp
+  ansible.builtin.apt:
+    name:
+      - xrdp
+      - xorgxrdp
+    state: present
+    update_cache: true
+  retries: 3
+  delay: 10
+  failed_when: false
+
+- name: Enable and start xrdp
+  ansible.builtin.systemd:
+    name: xrdp
+    enabled: true
+    state: started
+  failed_when: false
+
+- name: Add xrdp user to ssl-cert group
+  ansible.builtin.user:
+    name: xrdp
+    groups: ssl-cert
+    append: true
+  failed_when: false
+
 # ── Lab scripts ──────────────────────────────────────────────────────
 - name: Create lab scripts directory
   ansible.builtin.file:

@@ -133,9 +133,8 @@
 
 # ── Process Monitor: install + filter file ───────────────────────────
 - name: Install Process Monitor via Chocolatey
-  chocolatey.chocolatey.win_chocolatey:
-    name: procmon
-    state: present
+  ansible.windows.win_shell: |
+    choco install procmon -y --no-progress
   retries: 3
   delay: 15
   failed_when: false
@@ -202,10 +201,12 @@
 
 # ── Event Viewer shortcut ────────────────────────────────────────────
 - name: Create Event Viewer shortcut on Desktop
-  ansible.windows.win_shortcut:
-    src: C:\Windows\System32\eventvwr.msc
-    dest: C:\Users\Public\Desktop\Event Viewer.lnk
-    description: Event Viewer - Security and System logs
+  ansible.windows.win_shell: |
+    $ws = New-Object -ComObject WScript.Shell
+    $lnk = $ws.CreateShortcut('C:\Users\Public\Desktop\Event Viewer.lnk')
+    $lnk.TargetPath = 'C:\Windows\System32\eventvwr.msc'
+    $lnk.Description = 'Event Viewer - Security and System logs'
+    $lnk.Save()
   failed_when: false
 
 # ── TrustMeBro.exe on TARGET for cleanup ─────────────────────────────

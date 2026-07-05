@@ -10,9 +10,8 @@
 
 # ── Defender: nuke it (flarevm approach, must run FIRST) ─────────────
 - name: Add whole-drive Defender exclusion (bypasses Tamper Protection)
-  ansible.windows.win_powershell:
-    script: |
-      Add-MpPreference -ExclusionPath 'C:\' -ErrorAction SilentlyContinue
+  ansible.windows.win_shell: |
+    Add-MpPreference -ExclusionPath 'C:\' -ErrorAction SilentlyContinue
   failed_when: false
 
 - name: Check Tamper Protection status
@@ -388,20 +387,26 @@
     dest: C:\Users\Public\Desktop\START_HERE.txt
     force: true
 
-# ── Desktop: shortcut to C:\Demo\TrustMeBro ──────────────────────────
-- name: Create TrustMeBro shortcut on Desktop
-  ansible.windows.win_shortcut:
-    src: C:\Demo\TrustMeBro
-    dest: C:\Users\localuser\Desktop\TrustMeBro.lnk
-    description: TrustMeBro toolkit
-  failed_when: false
+# ── Desktop: shortcuts ────────────────────────────────────────────────
+- name: Create desktop shortcuts (TrustMeBro, Terminal, Windows Terminal)
+  ansible.windows.win_shell: |
+    $ws = New-Object -ComObject WScript.Shell
 
-- name: Create Terminal Here shortcut on Desktop
-  ansible.windows.win_shortcut:
-    src: C:\Windows\System32\cmd.exe
-    dest: C:\Users\localuser\Desktop\Terminal (TrustMeBro).lnk
-    directory: C:\Demo\TrustMeBro
-    description: Open terminal in TrustMeBro directory
+    $lnk = $ws.CreateShortcut('C:\Users\localuser\Desktop\TrustMeBro.lnk')
+    $lnk.TargetPath = 'C:\Demo\TrustMeBro'
+    $lnk.Save()
+
+    $lnk = $ws.CreateShortcut('C:\Users\localuser\Desktop\Terminal (TrustMeBro).lnk')
+    $lnk.TargetPath = 'C:\Windows\System32\cmd.exe'
+    $lnk.WorkingDirectory = 'C:\Demo\TrustMeBro'
+    $lnk.Description = 'Open terminal in TrustMeBro directory'
+    $lnk.Save()
+
+    $lnk = $ws.CreateShortcut('C:\Users\localuser\Desktop\Windows Terminal.lnk')
+    $lnk.TargetPath = 'wt.exe'
+    $lnk.WorkingDirectory = 'C:\Demo\TrustMeBro'
+    $lnk.Description = 'Windows Terminal in TrustMeBro directory'
+    $lnk.Save()
   failed_when: false
 
 # ── PowerShell profile with aliases ──────────────────────────────────
@@ -445,13 +450,4 @@
       Write-Host "  Target: 10.1.10.30  Kibana: https://10.1.10.10:5601" -ForegroundColor DarkGray
     dest: C:\Users\localuser\Documents\PowerShell\Microsoft.PowerShell_profile.ps1
     force: true
-  failed_when: false
-
-# ── Windows Terminal: pin to taskbar ─────────────────────────────────
-- name: Create Windows Terminal shortcut on Desktop
-  ansible.windows.win_shortcut:
-    src: wt.exe
-    dest: C:\Users\localuser\Desktop\Windows Terminal.lnk
-    directory: C:\Demo\TrustMeBro
-    description: Windows Terminal in TrustMeBro directory
   failed_when: false

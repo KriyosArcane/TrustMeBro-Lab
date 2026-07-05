@@ -197,9 +197,15 @@
         </Filters>
       </procmon>
     dest: C:\Users\Public\Desktop\TrustMeBro_Filter.PMF
-    force: true
+    force: false
 
 # ── Event Viewer shortcut ────────────────────────────────────────────
+- name: Check if Event Viewer shortcut exists
+  ansible.windows.win_stat:
+    path: C:\Users\Public\Desktop\Event Viewer.lnk
+  register: ev_shortcut
+  failed_when: false
+
 - name: Create Event Viewer shortcut on Desktop
   ansible.windows.win_shell: |
     $ws = New-Object -ComObject WScript.Shell
@@ -207,6 +213,7 @@
     $lnk.TargetPath = 'C:\Windows\System32\eventvwr.msc'
     $lnk.Description = 'Event Viewer - Security and System logs'
     $lnk.Save()
+  when: not (ev_shortcut.stat.exists | default(false))
   failed_when: false
 
 # ── TrustMeBro.exe on TARGET for cleanup ─────────────────────────────
@@ -247,7 +254,7 @@
       RDP:  mstsc /v:10.1.10.20 (DEVBOX) or 10.1.10.30 (TARGET)
       SSH:  ssh localuser@10.1.10.20 or ssh localuser@10.1.10.30
     dest: C:\Users\localuser\Desktop\lab_creds.txt
-    force: true
+    force: false
   failed_when: false
 
 - name: Write lab credentials to Public Desktop (fallback)
@@ -269,4 +276,4 @@
       RDP:  mstsc /v:10.1.10.20 (DEVBOX) or 10.1.10.30 (TARGET)
       SSH:  ssh localuser@10.1.10.20 or ssh localuser@10.1.10.30
     dest: C:\Users\Public\Desktop\lab_creds.txt
-    force: true
+    force: false

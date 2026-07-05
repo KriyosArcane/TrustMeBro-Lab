@@ -99,6 +99,14 @@
     data: 1
     type: dword
 
+# ── PowerShell execution policy ──────────────────────────────────────
+- name: Set PowerShell execution policy to Unrestricted
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell
+    name: ExecutionPolicy
+    data: Unrestricted
+    type: string
+
 # ── SSH: install if not present ──────────────────────────────────────
 - name: Check if OpenSSH server is installed
   ansible.windows.win_shell: |
@@ -288,7 +296,7 @@
       RDP:  mstsc /v:10.1.10.30 (TARGET) or 10.1.10.20 (DEVBOX)
       SSH:  ssh localuser@10.1.10.30 or ssh localuser@10.1.10.20
     dest: C:\Users\localuser\Desktop\lab_creds.txt
-    force: true
+    force: false
   failed_when: false
 
 - name: Write lab credentials to Public Desktop (fallback)
@@ -310,7 +318,7 @@
       RDP:  mstsc /v:10.1.10.30 (TARGET) or 10.1.10.20 (DEVBOX)
       SSH:  ssh localuser@10.1.10.30 or ssh localuser@10.1.10.20
     dest: C:\Users\Public\Desktop\lab_creds.txt
-    force: true
+    force: false
 
 # ── Desktop: START_HERE.txt ──────────────────────────────────────────
 - name: Write START_HERE.txt to Desktop
@@ -383,7 +391,7 @@
 
         On TARGET: TrustMeBro.exe clean --all
     dest: C:\Users\localuser\Desktop\START_HERE.txt
-    force: true
+    force: false
   failed_when: false
 
 - name: Write START_HERE.txt to Public Desktop (fallback)
@@ -395,7 +403,7 @@
       See C:\Users\localuser\Desktop\START_HERE.txt for full steps.
       Or open Edge - Kibana dashboard loads automatically.
     dest: C:\Users\Public\Desktop\START_HERE.txt
-    force: true
+    force: false
 
 # ── Windows Terminal: install in role (non-blocking) ─────────────────
 - name: Install Windows Terminal via Chocolatey
@@ -403,6 +411,12 @@
   failed_when: false
 
 # ── Desktop: shortcuts ────────────────────────────────────────────────
+- name: Check if desktop shortcuts exist
+  ansible.windows.win_stat:
+    path: C:\Users\localuser\Desktop\TrustMeBro.lnk
+  register: tmb_shortcut
+  failed_when: false
+
 - name: Create desktop shortcuts (TrustMeBro, Terminal, Windows Terminal)
   ansible.windows.win_shell: |
     $ws = New-Object -ComObject WScript.Shell
@@ -422,6 +436,7 @@
     $lnk.WorkingDirectory = 'C:\Demo\TrustMeBro'
     $lnk.Description = 'Windows Terminal in TrustMeBro directory'
     $lnk.Save()
+  when: not (tmb_shortcut.stat.exists | default(false))
   failed_when: false
 
 # ── PowerShell profile with aliases ──────────────────────────────────
@@ -449,7 +464,7 @@
       Write-Host "  tmbpy = TrustMeBro.py" -ForegroundColor DarkGray
       Write-Host "  Target: 10.1.10.30  Kibana: https://10.1.10.10:5601" -ForegroundColor DarkGray
     dest: C:\Users\localuser\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
-    force: true
+    force: false
   failed_when: false
 
 - name: Write PowerShell profile (PS 7 / Windows Terminal)
@@ -464,5 +479,5 @@
       Write-Host "  tmbpy = TrustMeBro.py" -ForegroundColor DarkGray
       Write-Host "  Target: 10.1.10.30  Kibana: https://10.1.10.10:5601" -ForegroundColor DarkGray
     dest: C:\Users\localuser\Documents\PowerShell\Microsoft.PowerShell_profile.ps1
-    force: true
+    force: false
   failed_when: false

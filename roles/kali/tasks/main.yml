@@ -1,0 +1,130 @@
+---
+# Kali setup: attacker machine + Tailscale subnet router + lab scripts
+#
+# This role:
+# 1. Installs Tailscale and advertises the lab subnet (10.1.10.0/24)
+# 2. Deploys elastic-mode.sh and setup-kibana-dashboard.sh
+# 3. Runs Kibana setup automatically
+# 4. Creates lab_creds.txt on the desktop
+
+# ── Tailscale: install + subnet router ───────────────────────────────
+- name: Install Tailscale
+  ansible.builtin.shell: |
+    curl -fsSL https://tailscale.com/install.sh | sh
+  args:
+    creates: /usr/bin/tailscale
+
+- name: Enable IP forwarding for Tailscale subnet routing
+  ansible.builtin.copy:
+    content: |
+      net.ipv4.ip_forward = 1
+      net.ipv6.conf.all.forwarding = 1
+    dest: /etc/sysctl.d/99-tailscale.conf
+    mode: '0644'
+
+- name: Apply sysctl settings
+  ansible.builtin.command: sysctl -p /etc/sysctl.d/99-tailscale.conf
+
+- name: Bring up Tailscale with auth key and subnet routes
+  ansible.builtin.shell: |
+    tailscale up --authkey={{ tailscale_authkey }} --advertise-routes=10.1.10.0/24 --accept-routes
+  args:
+    creates: /var/lib/tailscale/tailscaled.state
+  when: tailscale_authkey is defined and tailscale_authkey | length > 0
+
+- name: Set advertised routes (idempotent, runs if already up)
+  ansible.builtin.command: tailscale set --advertise-routes=10.1.10.0/24
+  failed_when: false
+
+# ── Lab scripts ──────────────────────────────────────────────────────
+- name: Create lab scripts directory
+  ansible.builtin.file:
+    path: /home/kali/lab
+    state: directory
+    owner: kali
+    group: kali
+    mode: '0755'
+
+- name: Deploy elastic-mode.sh
+  ansible.builtin.copy:
+    src: elastic-mode.sh
+    dest: /home/kali/lab/elastic-mode.sh
+    owner: kali
+    group: kali
+    mode: '0755'
+
+- name: Deploy setup-kibana-dashboard.sh
+  ansible.builtin.copy:
+    src: setup-kibana-dashboard.sh
+    dest: /home/kali/lab/setup-kibana-dashboard.sh
+    owner: kali
+    group: kali
+    mode: '0755'
+
+# ── Run Kibana setup (wait for Elastic to be ready) ──────────────────
+- name: Run Kibana dashboard setup
+  ansible.builtin.shell: /home/kali/lab/setup-kibana-dashboard.sh 10.1.10.10 TrustMeBro2026!
+  become: true
+  become_user: kali
+  retries: 5
+  delay: 30
+  register: kibana_setup
+  until: kibana_setup.rc == 0
+  failed_when: false
+
+# ── Lab credentials on Desktop ───────────────────────────────────────
+- name: Create Kali Desktop directory
+  ansible.builtin.file:
+    path: /home/kali/Desktop
+    state: directory
+    owner: kali
+    group: kali
+    mode: '0755'
+
+- name: Write lab credentials to Desktop
+  ansible.builtin.copy:
+    content: |
+      ============================================
+       TrustMeBro DEF CON Lab - Credentials
+      ============================================
+
+      DEVBOX (Operator)     10.1.10.20    localuser / password
+      TARGET (Victim)       10.1.10.30    localuser / password
+      Elastic (Kibana)      10.1.10.10    elastic / TrustMeBro2026!
+      Kali (Attacker)       10.1.10.40    kali / kali
+
+      Kibana URL:  https://10.1.10.10:5601
+      Kibana user: elastic
+      Kibana pass: TrustMeBro2026!
+
+      RDP to DEVBOX: xfreerdp /v:10.1.10.20 /u:localuser /p:password /dynamic-resolution
+      RDP to TARGET: xfreerdp /v:10.1.10.30 /u:localuser /p:password /dynamic-resolution
+      SSH to DEVBOX: ssh localuser@10.1.10.20
+      SSH to TARGET: ssh localuser@10.1.10.30
+
+      Elastic Mode (toggle EDR blocking):
+        ~/lab/elastic-mode.sh status
+        ~/lab/elastic-mode.sh detect    # alert only
+        ~/lab/elastic-mode.sh prevent   # active blocking
+    dest: /home/kali/Desktop/lab_creds.txt
+    owner: kali
+    group: kali
+    mode: '0644'
+
+- name: Write quick-reference README
+  ansible.builtin.copy:
+    content: |
+      TrustMeBro Lab Scripts
+      ======================
+
+      elastic-mode.sh     Toggle Elastic Defend between detect/prevent
+      setup-kibana-dashboard.sh   (Already ran automatically at deploy)
+
+      Usage:
+        ./elastic-mode.sh status    Show current EDR mode
+        ./elastic-mode.sh detect    Alert only, no blocking
+        ./elastic-mode.sh prevent   Block malicious activity
+    dest: /home/kali/lab/README.txt
+    owner: kali
+    group: kali
+    mode: '0644'

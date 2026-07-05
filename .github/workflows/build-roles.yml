@@ -21,6 +21,9 @@ jobs:
       - name: Package target role
         run: cd roles/target && tar cf ../../trustmebro_target.tar .
 
+      - name: Package kali role
+        run: cd roles/kali && tar cf ../../trustmebro_kali.tar .
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -28,6 +31,7 @@ jobs:
           path: |
             trustmebro_devbox.tar
             trustmebro_target.tar
+            trustmebro_kali.tar
 
       - name: Create or update release
         uses: softprops/action-gh-release@v2
@@ -40,10 +44,12 @@ jobs:
             ```bash
             ludus ansible roles add trustmebro_devbox.tar
             ludus ansible roles add trustmebro_target.tar
+            ludus ansible roles add trustmebro_kali.tar
             ```
           files: |
             trustmebro_devbox.tar
             trustmebro_target.tar
+            trustmebro_kali.tar
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

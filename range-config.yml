@@ -78,3 +78,7 @@ ludus:
     testing:
       snapshot: true
       block_internet: false
+    roles:
+      - trustmebro_kali
+    role_vars:
+      tailscale_authkey: "tskey-auth-knmK5zkXmG11CNTRL-oAsAF3jhc4XXVisQgBcj3XtbUaBxnaHt"

@@ -19,7 +19,6 @@ ludus:
         - python3
         - git
         - osslsigncode
-        - microsoft-windows-terminal
     testing:
       snapshot: true
       block_internet: false

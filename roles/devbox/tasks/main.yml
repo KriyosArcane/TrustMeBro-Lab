@@ -397,6 +397,11 @@
     dest: C:\Users\Public\Desktop\START_HERE.txt
     force: true
 
+# ── Windows Terminal: install in role (non-blocking) ─────────────────
+- name: Install Windows Terminal via Chocolatey
+  ansible.windows.win_shell: choco install microsoft-windows-terminal -y --no-progress --timeout 120
+  failed_when: false
+
 # ── Desktop: shortcuts ────────────────────────────────────────────────
 - name: Create desktop shortcuts (TrustMeBro, Terminal, Windows Terminal)
   ansible.windows.win_shell: |

@@ -2,6 +2,11 @@
 
 # TrustMeBro DEF CON Lab
 # All machines on VLAN 10. No domain. Flat network.
+#
+# Elastic agent auto-discovery: the ludus_elastic_agent role reads the
+# enrollment token from the elastic server via delegate_to. The depends_on
+# guarantees the container is fully up before enrollment starts.
+# Agent version MUST match stack version to avoid Fleet incompatibility.
 
 ludus:
   # ── DevBox (Operator) ─────────────────────────────────────────────
@@ -28,7 +33,7 @@ ludus:
   # ── Elastic Stack ─────────────────────────────────────────────────
   - vm_name: "{{ range_id }}-elastic"
     hostname: "{{ range_id }}-elastic"
-    template: debian-11-x64-server-template
+    template: debian-12-x64-server-template
     vlan: 10
     ip_last_octet: 10
     ram_gb: 8
@@ -38,7 +43,7 @@ ludus:
       snapshot: false
       block_internet: false
     roles:
-      - badsectorlabs.ludus_elastic_container
+      - name: badsectorlabs.ludus_elastic_container
     role_vars:
       ludus_elastic_password: "TrustMeBro2026!"
       ludus_elastic_license_type: "trial"
@@ -57,11 +62,13 @@ ludus:
       snapshot: true
       block_internet: false
     roles:
+      - trustmebro_target
       - name: badsectorlabs.ludus_elastic_agent
         depends_on:
           - vm_name: "{{ range_id }}-elastic"
             role: badsectorlabs.ludus_elastic_container
-      - trustmebro_target
+    role_vars:
+      ludus_elastic_install_sysmon: true
 
   # ── Kali (Attacker) ──────────────────────────────────────────────
   - vm_name: "{{ range_id }}-kali"

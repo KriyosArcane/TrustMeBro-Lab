@@ -252,7 +252,7 @@
   loop:
     - { src: 'C:\Windows\explorer.exe', name: 'explorer.exe' }
     - { src: 'C:\Windows\System32\notepad.exe', name: 'notepad.exe' }
-    - { src: 'C:\Windows\System32\mspaint.exe', name: 'mspaint.exe' }
+    - { src: 'C:\Windows\System32\calc.exe', name: 'calc.exe' }
 
 # ── Stage test files ─────────────────────────────────────────────────
 - name: Create test payload

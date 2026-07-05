@@ -68,18 +68,34 @@
   delay: 10
   failed_when: false
 
-- name: Enable and start xrdp
-  ansible.builtin.systemd:
-    name: xrdp
-    enabled: true
-    state: started
-  failed_when: false
+- name: Set kali user password for xrdp auth
+  ansible.builtin.shell: echo "kali:kali" | chpasswd
+  changed_when: false
+
+- name: Configure xrdp to use xfce session
+  ansible.builtin.copy:
+    content: |
+      unset DBUS_SESSION_BUS_ADDRESS
+      unset XDG_RUNTIME_DIR
+      exec startxfce4
+    dest: /home/kali/.xsession
+    owner: kali
+    group: kali
+    mode: '0755'
+    force: false
 
 - name: Add xrdp user to ssl-cert group
   ansible.builtin.user:
     name: xrdp
     groups: ssl-cert
     append: true
+  failed_when: false
+
+- name: Enable and start xrdp
+  ansible.builtin.systemd:
+    name: xrdp
+    enabled: true
+    state: restarted
   failed_when: false
 
 # ── Lab scripts ──────────────────────────────────────────────────────

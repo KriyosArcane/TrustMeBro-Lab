@@ -85,4 +85,4 @@ ludus:
     roles:
       - trustmebro_kali
     role_vars:
-      tailscale_authkey: "tskey-auth-knmK5zkXmG11CNTRL-oAsAF3jhc4XXVisQgBcj3XtbUaBxnaHt"
+      tailscale_authkey: "tskey-auth-kdcax1NvW111CNTRL-r4pPvNCS9kKgWbWPNoMRkKT6MXCiguxqC"

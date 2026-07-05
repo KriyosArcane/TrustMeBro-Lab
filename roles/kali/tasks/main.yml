@@ -8,11 +8,25 @@
 # 4. Creates lab_creds.txt on the desktop
 
 # ── Tailscale: install + subnet router ───────────────────────────────
-- name: Install Tailscale
+- name: Add Tailscale GPG key
   ansible.builtin.shell: |
-    curl -fsSL https://tailscale.com/install.sh | sh
+    curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg -o /usr/share/keyrings/tailscale-archive-keyring.gpg
   args:
-    creates: /usr/bin/tailscale
+    creates: /usr/share/keyrings/tailscale-archive-keyring.gpg
+
+- name: Add Tailscale apt repo
+  ansible.builtin.copy:
+    content: "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/debian bookworm main"
+    dest: /etc/apt/sources.list.d/tailscale.list
+    mode: '0644'
+
+- name: Install Tailscale via apt
+  ansible.builtin.apt:
+    name: tailscale
+    state: present
+    update_cache: true
+  retries: 3
+  delay: 10
 
 - name: Enable IP forwarding for Tailscale subnet routing
   ansible.builtin.copy:

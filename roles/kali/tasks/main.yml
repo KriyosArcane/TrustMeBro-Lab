@@ -39,9 +39,15 @@
 - name: Apply sysctl settings
   ansible.builtin.command: sysctl -p /etc/sysctl.d/99-tailscale.conf
 
+- name: Enable and start tailscaled service
+  ansible.builtin.systemd:
+    name: tailscaled
+    enabled: true
+    state: started
+
 - name: Bring up Tailscale with auth key and subnet routes
   ansible.builtin.shell: |
-    tailscale up --authkey={{ tailscale_authkey }} --advertise-routes=10.1.10.0/24 --accept-routes
+    tailscale up --authkey="{{ tailscale_authkey }}" --advertise-routes=10.1.10.0/24 --accept-routes
   args:
     creates: /var/lib/tailscale/tailscaled.state
   when: tailscale_authkey is defined and tailscale_authkey | length > 0

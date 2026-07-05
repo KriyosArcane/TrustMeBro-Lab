@@ -403,3 +403,55 @@
     directory: C:\Demo\TrustMeBro
     description: Open terminal in TrustMeBro directory
   failed_when: false
+
+# ── PowerShell profile with aliases ──────────────────────────────────
+- name: Ensure PowerShell profile directory exists
+  ansible.windows.win_file:
+    path: C:\Users\localuser\Documents\PowerShell
+    state: directory
+  failed_when: false
+
+- name: Ensure WindowsPowerShell profile directory exists
+  ansible.windows.win_file:
+    path: C:\Users\localuser\Documents\WindowsPowerShell
+    state: directory
+  failed_when: false
+
+- name: Write PowerShell profile (PS 5.1)
+  ansible.windows.win_copy:
+    content: |
+      # TrustMeBro Lab aliases
+      Set-Alias tmb 'C:\Demo\TrustMeBro\TrustMeBro.exe'
+      Set-Alias tmbpy 'C:\Demo\TrustMeBro\TrustMeBro.py'
+      Set-Location C:\Demo\TrustMeBro
+      Write-Host "TrustMeBro Lab Ready" -ForegroundColor Green
+      Write-Host "  tmb   = TrustMeBro.exe" -ForegroundColor DarkGray
+      Write-Host "  tmbpy = TrustMeBro.py" -ForegroundColor DarkGray
+      Write-Host "  Target: 10.1.10.30  Kibana: https://10.1.10.10:5601" -ForegroundColor DarkGray
+    dest: C:\Users\localuser\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
+    force: true
+  failed_when: false
+
+- name: Write PowerShell profile (PS 7 / Windows Terminal)
+  ansible.windows.win_copy:
+    content: |
+      # TrustMeBro Lab aliases
+      Set-Alias tmb 'C:\Demo\TrustMeBro\TrustMeBro.exe'
+      Set-Alias tmbpy 'C:\Demo\TrustMeBro\TrustMeBro.py'
+      Set-Location C:\Demo\TrustMeBro
+      Write-Host "TrustMeBro Lab Ready" -ForegroundColor Green
+      Write-Host "  tmb   = TrustMeBro.exe" -ForegroundColor DarkGray
+      Write-Host "  tmbpy = TrustMeBro.py" -ForegroundColor DarkGray
+      Write-Host "  Target: 10.1.10.30  Kibana: https://10.1.10.10:5601" -ForegroundColor DarkGray
+    dest: C:\Users\localuser\Documents\PowerShell\Microsoft.PowerShell_profile.ps1
+    force: true
+  failed_when: false
+
+# ── Windows Terminal: pin to taskbar ─────────────────────────────────
+- name: Create Windows Terminal shortcut on Desktop
+  ansible.windows.win_shortcut:
+    src: wt.exe
+    dest: C:\Users\localuser\Desktop\Windows Terminal.lnk
+    directory: C:\Demo\TrustMeBro
+    description: Windows Terminal in TrustMeBro directory
+  failed_when: false

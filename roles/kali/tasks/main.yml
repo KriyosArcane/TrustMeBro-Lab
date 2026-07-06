@@ -295,8 +295,19 @@
   ansible.builtin.shell: |
     GIT_TERMINAL_PROMPT=0 git clone --depth 1 {{ kali_git_base }}/KriyosArcane/TrustMeBOF.git /home/kali/TrustMeBOF
   when: not (bof_repo_kali.stat.exists | default(false))
+  register: bof_clone_result
   failed_when: false
   timeout: 60
+
+- name: Check if TrustMeBOF was cloned successfully
+  ansible.builtin.stat:
+    path: /home/kali/TrustMeBOF/tmb.axscript
+  register: bof_axscript_exists
+
+- name: Warn if TrustMeBOF is missing (repo may be private)
+  ansible.builtin.debug:
+    msg: "WARNING: TrustMeBOF not available. BOF commands will not work in Adaptix. Make the repo public or use private config with github_token."
+  when: not (bof_axscript_exists.stat.exists | default(false))
 
 - name: Create axscripts directory
   ansible.builtin.file:

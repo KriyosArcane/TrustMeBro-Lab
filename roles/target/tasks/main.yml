@@ -222,7 +222,38 @@
     path: C:\Temp\TrustMeBro.exe
   register: tmb_target
 
-# ── Verify Defender is running (target should have it active) ────────
+# ── Verify Defender is running (target MUST have it active) ──────────
+- name: Ensure Defender GPO does NOT disable it
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender
+    name: DisableAntiSpyware
+    state: absent
+  failed_when: false
+
+- name: Ensure Defender real-time monitoring is not disabled by GPO
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection
+    name: "{{ item }}"
+    state: absent
+  loop:
+    - DisableRealtimeMonitoring
+    - DisableBehaviorMonitoring
+    - DisableOnAccessProtection
+    - DisableScanOnRealtimeEnable
+    - DisableIOAVProtection
+  failed_when: false
+
+- name: Enable Defender real-time protection
+  ansible.windows.win_shell: |
+    Set-MpPreference -DisableRealtimeMonitoring $false -ErrorAction SilentlyContinue
+  failed_when: false
+
+- name: Start Defender service
+  ansible.windows.win_shell: |
+    Set-Service -Name WinDefend -StartupType Automatic -ErrorAction SilentlyContinue
+    Start-Service -Name WinDefend -ErrorAction SilentlyContinue
+  failed_when: false
+
 - name: Check Defender status
   ansible.windows.win_shell: |
     (Get-MpComputerStatus).RealTimeProtectionEnabled
@@ -232,7 +263,7 @@
 
 - name: Report Defender status
   ansible.builtin.debug:
-    msg: "Defender RealTime Protection: {{ defender_check.stdout | trim }}"
+    msg: "Target Defender RealTime Protection: {{ defender_check.stdout | default('unknown') | trim }}"
 
 # ── Desktop: lab_creds.txt ───────────────────────────────────────────
 - name: Write lab credentials to Desktop

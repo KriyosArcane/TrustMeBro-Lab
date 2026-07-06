@@ -9,33 +9,28 @@
 # - Retries on network-dependent operations
 
 # ── Defender: nuke it (flarevm approach, must run FIRST) ─────────────
+# Run unconditionally. Defender re-enables itself after updates.
+# The privacy.sexy bat handles all cases (tamper on/off, service running/stopped).
+
 - name: Add whole-drive Defender exclusion (bypasses Tamper Protection)
   ansible.windows.win_shell: |
     $drive = $env:SystemDrive
     Add-MpPreference -ExclusionPath $drive -ErrorAction SilentlyContinue
   failed_when: false
 
-- name: Check Tamper Protection status
+- name: Check if Defender is already disabled
   ansible.windows.win_shell: |
-    (Get-MpComputerStatus).IsTamperProtected
-  register: tamper_protection_result
+    (Get-MpComputerStatus).RealTimeProtectionEnabled
+  register: defender_status
   failed_when: false
   changed_when: false
-
-- name: Set tamper protection fact
-  ansible.builtin.set_fact:
-    tamper_protection_enabled: "{{ true if tamper_protection_result.stdout is defined and 'True' in tamper_protection_result.stdout else false }}"
 
 - name: Run privacy.sexy Defender kill script
   ansible.builtin.script:
     cmd: disable_defender.bat
   register: disable_defender_result
   failed_when: false
-  when: tamper_protection_enabled
-
-- name: Reboot after Defender kill (required for driver removal)
-  ansible.windows.win_reboot:
-  when: tamper_protection_enabled and disable_defender_result is changed
+  when: defender_status.stdout is defined and 'True' in defender_status.stdout
 
 - name: Disable Defender via Group Policy registry keys
   ansible.windows.win_regedit:
@@ -59,12 +54,27 @@
     - DisableIOAVProtection
   failed_when: false
 
-- name: Stop Defender service (best effort, post-reboot)
+- name: Stop Defender service (best effort)
   ansible.windows.win_shell: |
     Stop-Service -Name WinDefend -Force -ErrorAction SilentlyContinue
     Set-Service -Name WinDefend -StartupType Disabled -ErrorAction SilentlyContinue
   changed_when: false
   failed_when: false
+
+- name: Reboot after Defender kill (required for driver removal)
+  ansible.windows.win_reboot:
+  when: defender_status.stdout is defined and 'True' in defender_status.stdout
+
+- name: Verify Defender is disabled after reboot
+  ansible.windows.win_shell: |
+    (Get-MpComputerStatus).RealTimeProtectionEnabled
+  register: defender_verify
+  failed_when: false
+  changed_when: false
+
+- name: Report Defender status
+  ansible.builtin.debug:
+    msg: "DevBox Defender RealTimeProtection: {{ defender_verify.stdout | default('unknown') | trim }}"
 
 # ── Firewall: disable on all profiles ────────────────────────────────
 # win_firewall module fails if MpsSvc is dead (killed by disable_defender.bat)
@@ -260,17 +270,14 @@
     # Map for current session (SYSTEM)
     net use T: \\10.1.10.30\C$ /user:localuser password 2>&1
 
-    # Persist for localuser via registry so it reconnects at logon
-    $sid = (New-Object System.Security.Principal.NTAccount("localuser")).Translate([System.Security.Principal.SecurityIdentifier]).Value
-    $path = "Registry::HKEY_USERS\$sid\Network\T"
-    if (-not (Test-Path $path)) {
-      New-Item -Path $path -Force | Out-Null
-      New-ItemProperty -Path $path -Name RemotePath -Value "\\10.1.10.30\C$" -PropertyType String -Force | Out-Null
-      New-ItemProperty -Path $path -Name UserName -Value "localuser" -PropertyType String -Force | Out-Null
-      New-ItemProperty -Path $path -Name ProviderName -Value "Microsoft Windows Network" -PropertyType String -Force | Out-Null
-      New-ItemProperty -Path $path -Name ProviderType -Value 131072 -PropertyType DWord -Force | Out-Null
-      New-ItemProperty -Path $path -Name ConnectionType -Value 1 -PropertyType DWord -Force | Out-Null
-      New-ItemProperty -Path $path -Name DeferFlags -Value 4 -PropertyType DWord -Force | Out-Null
+    # Create logon script to re-map on every login
+    $script = @'
+    @echo off
+    if not exist T:\ net use T: \\10.1.10.30\C$ /user:localuser password /persistent:no >nul 2>&1
+    '@
+    $scriptPath = "C:\Users\localuser\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\map_target.cmd"
+    if (-not (Test-Path $scriptPath)) {
+      Set-Content -Path $scriptPath -Value $script -Force
     }
   failed_when: false
 

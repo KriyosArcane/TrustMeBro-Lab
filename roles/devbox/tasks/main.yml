@@ -255,10 +255,22 @@
   failed_when: false
 
 # ── Map TARGET as T: drive ────────────────────────────────────────────
-- name: Map TARGET C$ as T drive
+- name: Map TARGET C$ as T drive for localuser
   ansible.windows.win_shell: |
-    if (-not (Test-Path T:\)) {
-      net use T: \\10.1.10.30\C$ /user:localuser password /persistent:yes 2>&1
+    # Map for current session (SYSTEM)
+    net use T: \\10.1.10.30\C$ /user:localuser password 2>&1
+
+    # Persist for localuser via registry so it reconnects at logon
+    $sid = (New-Object System.Security.Principal.NTAccount("localuser")).Translate([System.Security.Principal.SecurityIdentifier]).Value
+    $path = "Registry::HKEY_USERS\$sid\Network\T"
+    if (-not (Test-Path $path)) {
+      New-Item -Path $path -Force | Out-Null
+      New-ItemProperty -Path $path -Name RemotePath -Value "\\10.1.10.30\C$" -PropertyType String -Force | Out-Null
+      New-ItemProperty -Path $path -Name UserName -Value "localuser" -PropertyType String -Force | Out-Null
+      New-ItemProperty -Path $path -Name ProviderName -Value "Microsoft Windows Network" -PropertyType String -Force | Out-Null
+      New-ItemProperty -Path $path -Name ProviderType -Value 131072 -PropertyType DWord -Force | Out-Null
+      New-ItemProperty -Path $path -Name ConnectionType -Value 1 -PropertyType DWord -Force | Out-Null
+      New-ItemProperty -Path $path -Name DeferFlags -Value 4 -PropertyType DWord -Force | Out-Null
     }
   failed_when: false
 

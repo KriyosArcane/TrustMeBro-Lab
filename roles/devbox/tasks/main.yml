@@ -254,6 +254,14 @@
     $qa.Namespace('C:\Demo\TrustMeBro').Self.InvokeVerb('pintohome')
   failed_when: false
 
+# ── Map TARGET as T: drive ────────────────────────────────────────────
+- name: Map TARGET C$ as T drive
+  ansible.windows.win_shell: |
+    if (-not (Test-Path T:\)) {
+      net use T: \\10.1.10.30\C$ /user:localuser password /persistent:yes 2>&1
+    }
+  failed_when: false
+
 # ── Stage donor binaries ─────────────────────────────────────────────
 - name: Stage donor binaries
   ansible.windows.win_copy:

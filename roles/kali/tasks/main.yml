@@ -138,12 +138,17 @@
     creates: /etc/apt/keyrings/docker.asc
   when: docker_installed.rc != 0
 
-- name: Detect Debian codename for Docker repo
+- name: Detect Debian base codename for Docker repo
   ansible.builtin.shell: |
-    . /etc/os-release && echo "$VERSION_CODENAME"
+    # Kali returns kali-rolling, not a Debian codename. Map to the actual Debian base.
+    codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+    case "$codename" in
+      kali-*|kali) echo "bookworm" ;;
+      "") echo "bookworm" ;;
+      *) echo "$codename" ;;
+    esac
   register: debian_codename
   changed_when: false
-  failed_when: false
   when: docker_installed.rc != 0
 
 - name: Add Docker apt repo

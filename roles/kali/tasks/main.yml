@@ -115,6 +115,12 @@
     name: xrdp
     enabled: true
     state: restarted
+
+- name: Enable and start xrdp-sesman
+  ansible.builtin.systemd:
+    name: xrdp-sesman
+    enabled: true
+    state: restarted
   failed_when: false
 
 # ── Adaptix C2: build + run via Docker ───────────────────────────────
@@ -364,6 +370,25 @@
     group: kali
     recurse: true
   failed_when: false
+
+# ── Add kali to docker group + install tools ─────────────────────────
+- name: Add kali user to docker group
+  ansible.builtin.user:
+    name: kali
+    groups: docker
+    append: true
+  failed_when: false
+
+- name: Remove EXTERNALLY-MANAGED marker (Kali/Debian 12+)
+  ansible.builtin.shell: find /usr/lib/python*/EXTERNALLY-MANAGED -type f -delete 2>/dev/null; true
+  changed_when: false
+
+- name: Install Impacket
+  ansible.builtin.pip:
+    name: impacket
+    executable: pip3
+  retries: 3
+  delay: 10
   failed_when: false
 
 # ── Lab scripts ──────────────────────────────────────────────────────

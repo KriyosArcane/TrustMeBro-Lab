@@ -422,6 +422,45 @@
   ansible.windows.win_shell: choco install microsoft-windows-terminal -y --no-progress --timeout 120
   failed_when: false
 
+# ── Adaptix Client: download prebuilt Windows binary ─────────────────
+- name: Check if Adaptix client exists
+  ansible.windows.win_stat:
+    path: C:\Demo\AdaptixClient\AdaptixClient.exe
+  register: adaptix_client
+  failed_when: false
+
+- name: Download Adaptix client zip
+  ansible.windows.win_shell: |
+    New-Item -ItemType Directory -Force -Path C:\Demo\AdaptixClient | Out-Null
+    Invoke-WebRequest -Uri "https://github.com/KriyosArcane/TrustMeBro-Lab/releases/download/roles-latest/adaptix-client-windows.zip" -OutFile C:\Demo\AdaptixClient\adaptix.zip -UseBasicParsing
+  when: not (adaptix_client.stat.exists | default(false))
+  retries: 3
+  delay: 10
+  failed_when: false
+
+- name: Extract Adaptix client
+  ansible.windows.win_shell: |
+    Expand-Archive -Path C:\Demo\AdaptixClient\adaptix.zip -DestinationPath C:\Demo\AdaptixClient -Force
+    if (Test-Path C:\Demo\AdaptixClient\dist) {
+      Move-Item -Path C:\Demo\AdaptixClient\dist\* -Destination C:\Demo\AdaptixClient\ -Force
+      Remove-Item -Path C:\Demo\AdaptixClient\dist -Recurse -Force
+    }
+    Remove-Item -Path C:\Demo\AdaptixClient\adaptix.zip -Force
+  when: not (adaptix_client.stat.exists | default(false))
+  failed_when: false
+
+- name: Create Adaptix Client shortcut on Desktop
+  ansible.windows.win_shell: |
+    if (-not (Test-Path 'C:\Users\localuser\Desktop\Adaptix Client.lnk')) {
+      $ws = New-Object -ComObject WScript.Shell
+      $lnk = $ws.CreateShortcut('C:\Users\localuser\Desktop\Adaptix Client.lnk')
+      $lnk.TargetPath = 'C:\Demo\AdaptixClient\AdaptixClient.exe'
+      $lnk.WorkingDirectory = 'C:\Demo\AdaptixClient'
+      $lnk.Description = 'Adaptix C2 Client - connect to 10.1.10.40:4321'
+      $lnk.Save()
+    }
+  failed_when: false
+
 # ── Desktop: shortcuts ────────────────────────────────────────────────
 - name: Check if desktop shortcuts exist
   ansible.windows.win_stat:

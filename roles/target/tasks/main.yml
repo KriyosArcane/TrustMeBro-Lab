@@ -253,6 +253,10 @@
 
       RDP:  mstsc /v:10.1.10.20 (DEVBOX) or 10.1.10.30 (TARGET)
       SSH:  ssh localuser@10.1.10.20 or ssh localuser@10.1.10.30
+
+      Adaptix C2:  https://10.1.10.40:4321/endpoint
+      Adaptix pw:  TrustMeBro2026!
+      Kali RDP:    xfreerdp /v:10.1.10.40 /u:kali /p:kali
     dest: C:\Users\localuser\Desktop\lab_creds.txt
     force: false
   failed_when: false
@@ -275,5 +279,9 @@
 
       RDP:  mstsc /v:10.1.10.20 (DEVBOX) or 10.1.10.30 (TARGET)
       SSH:  ssh localuser@10.1.10.20 or ssh localuser@10.1.10.30
+
+      Adaptix C2:  https://10.1.10.40:4321/endpoint
+      Adaptix pw:  TrustMeBro2026!
+      Kali RDP:    xfreerdp /v:10.1.10.40 /u:kali /p:kali
     dest: C:\Users\Public\Desktop\lab_creds.txt
     force: false

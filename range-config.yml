@@ -1,12 +1,8 @@
 # yaml-language-server: $schema=https://docs.ludus.cloud/schemas/range-config.json
 
-# TrustMeBro DEF CON Lab
+# TrustMeBro DEF CON Lab (PUBLIC)
 # All machines on VLAN 10. No domain. Flat network.
-#
-# Elastic agent auto-discovery: the ludus_elastic_agent role reads the
-# enrollment token from the elastic server via delegate_to. The depends_on
-# guarantees the container is fully up before enrollment starts.
-# Agent version MUST match stack version to avoid Fleet incompatibility.
+# Repos must be public for this config to work.
 
 ludus:
   # ── DevBox (Operator) ─────────────────────────────────────────────
@@ -84,5 +80,3 @@ ludus:
       block_internet: false
     roles:
       - trustmebro_kali
-    role_vars:
-      tailscale_authkey: "tskey-auth-kdcax1NvW111CNTRL-r4pPvNCS9kKgWbWPNoMRkKT6MXCiguxqC"

@@ -7,18 +7,20 @@
 # 3. Runs Kibana setup automatically
 # 4. Creates lab_creds.txt on the desktop
 
-# ── Tailscale: install + subnet router ───────────────────────────────
+# ── Tailscale: install + subnet router (only if authkey provided) ────
 - name: Add Tailscale GPG key
   ansible.builtin.shell: |
     curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg -o /usr/share/keyrings/tailscale-archive-keyring.gpg
   args:
     creates: /usr/share/keyrings/tailscale-archive-keyring.gpg
+  when: tailscale_authkey is defined and tailscale_authkey | length > 0
 
 - name: Add Tailscale apt repo
   ansible.builtin.copy:
     content: "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/debian bookworm main"
     dest: /etc/apt/sources.list.d/tailscale.list
     mode: '0644'
+  when: tailscale_authkey is defined and tailscale_authkey | length > 0
 
 - name: Install Tailscale via apt
   ansible.builtin.apt:
@@ -27,6 +29,7 @@
     update_cache: true
   retries: 3
   delay: 10
+  when: tailscale_authkey is defined and tailscale_authkey | length > 0
 
 - name: Enable IP forwarding for Tailscale subnet routing
   ansible.builtin.copy:
@@ -35,15 +38,18 @@
       net.ipv6.conf.all.forwarding = 1
     dest: /etc/sysctl.d/99-tailscale.conf
     mode: '0644'
+  when: tailscale_authkey is defined and tailscale_authkey | length > 0
 
 - name: Apply sysctl settings
   ansible.builtin.command: sysctl -p /etc/sysctl.d/99-tailscale.conf
+  when: tailscale_authkey is defined and tailscale_authkey | length > 0
 
 - name: Enable and start tailscaled service
   ansible.builtin.systemd:
     name: tailscaled
     enabled: true
     state: started
+  when: tailscale_authkey is defined and tailscale_authkey | length > 0
 
 - name: Bring up Tailscale with auth key and subnet routes
   ansible.builtin.shell: |
@@ -96,6 +102,159 @@
     name: xrdp
     enabled: true
     state: restarted
+  failed_when: false
+
+# ── Adaptix C2: build + run via Docker ───────────────────────────────
+- name: Install Docker prerequisites
+  ansible.builtin.apt:
+    name:
+      - docker.io
+      - docker-compose-plugin
+      - make
+    state: present
+    update_cache: true
+  retries: 3
+  delay: 10
+  failed_when: false
+
+- name: Enable and start Docker
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+
+- name: Check if AdaptixC2 repo exists
+  ansible.builtin.stat:
+    path: /home/kali/AdaptixC2/.git
+  register: adaptix_repo
+
+- name: Clone AdaptixC2
+  ansible.builtin.git:
+    repo: https://github.com/Adaptix-Framework/AdaptixC2.git
+    dest: /home/kali/AdaptixC2
+    depth: 1
+  when: not adaptix_repo.stat.exists
+  retries: 3
+  delay: 10
+  failed_when: false
+
+- name: Check if Adaptix server is already built
+  ansible.builtin.stat:
+    path: /home/kali/AdaptixC2/AdaptixServer/server-dist/adaptixserver
+  register: adaptix_built
+
+- name: Build Adaptix server + extenders via Docker
+  ansible.builtin.shell: |
+    cd /home/kali/AdaptixC2 && make docker-build-server-ext
+  when: not adaptix_built.stat.exists | default(true)
+  failed_when: false
+
+- name: Build Adaptix client AppImage via Docker
+  ansible.builtin.shell: |
+    cd /home/kali/AdaptixC2 && make docker-build-client
+  args:
+    creates: /home/kali/AdaptixC2/AdaptixClient/client-dist/AdaptixClient.AppImage
+  failed_when: false
+
+- name: Generate SSL certificate for Adaptix
+  ansible.builtin.shell: |
+    cd /home/kali/AdaptixC2/AdaptixServer/server-dist
+    openssl req -x509 -nodes -newkey rsa:2048 -keyout server.rsa.key -out server.rsa.crt -days 365 -subj "/CN=adaptix"
+  args:
+    creates: /home/kali/AdaptixC2/AdaptixServer/server-dist/server.rsa.crt
+  failed_when: false
+
+- name: Write Adaptix server profile
+  ansible.builtin.copy:
+    content: |
+      Teamserver:
+        interface: "0.0.0.0"
+        port: 4321
+        endpoint: "/endpoint"
+        password: "TrustMeBro2026!"
+        only_password: true
+        cert: "server.rsa.crt"
+        key: "server.rsa.key"
+        extenders:
+          - "extenders/beacon_listener_http/config.yaml"
+          - "extenders/beacon_listener_smb/config.yaml"
+          - "extenders/beacon_listener_tcp/config.yaml"
+          - "extenders/beacon_agent/config.yaml"
+        axscripts:
+          - "axscripts/tmb.axscript"
+        access_token_live_hours: 168
+        refresh_token_live_hours: 720
+
+      HttpServer:
+        error:
+          status: 404
+          headers:
+            Content-Type: "text/html; charset=UTF-8"
+          page: "404page.html"
+    dest: /home/kali/AdaptixC2/AdaptixServer/server-dist/profile.yaml
+    owner: kali
+    group: kali
+    mode: '0644'
+    force: false
+
+- name: Check if TrustMeBOF repo exists
+  ansible.builtin.stat:
+    path: /home/kali/TrustMeBOF/.git
+  register: bof_repo_kali
+
+- name: Set git base URL for Kali
+  ansible.builtin.set_fact:
+    kali_git_base: "{{ 'https://' + github_token + '@github.com' if github_token is defined and github_token | length > 0 else 'https://github.com' }}"
+
+- name: Clone TrustMeBOF
+  ansible.builtin.git:
+    repo: "{{ kali_git_base }}/KriyosArcane/TrustMeBOF.git"
+    dest: /home/kali/TrustMeBOF
+    depth: 1
+  when: not bof_repo_kali.stat.exists | default(true)
+  retries: 3
+  delay: 10
+  failed_when: false
+
+- name: Create axscripts directory
+  ansible.builtin.file:
+    path: /home/kali/AdaptixC2/AdaptixServer/server-dist/axscripts
+    state: directory
+    owner: kali
+    group: kali
+    mode: '0755'
+
+- name: Copy TrustMeBOF axscript to Adaptix
+  ansible.builtin.copy:
+    src: /home/kali/TrustMeBOF/tmb.axscript
+    dest: /home/kali/AdaptixC2/AdaptixServer/server-dist/axscripts/tmb.axscript
+    remote_src: true
+    owner: kali
+    group: kali
+    mode: '0644'
+    force: false
+  failed_when: false
+
+- name: Start Adaptix server runtime
+  ansible.builtin.shell: |
+    cd /home/kali/AdaptixC2 && make docker-up
+  failed_when: false
+
+- name: Symlink Adaptix client to Desktop
+  ansible.builtin.file:
+    src: /home/kali/AdaptixC2/AdaptixClient/client-dist/AdaptixClient.AppImage
+    dest: /home/kali/Desktop/AdaptixClient.AppImage
+    state: link
+    owner: kali
+    group: kali
+  failed_when: false
+
+- name: Set ownership of AdaptixC2 directory
+  ansible.builtin.file:
+    path: /home/kali/AdaptixC2
+    owner: kali
+    group: kali
+    recurse: true
   failed_when: false
 
 # ── Lab scripts ──────────────────────────────────────────────────────
@@ -158,6 +317,10 @@
       Kibana URL:  https://10.1.10.10:5601
       Kibana user: elastic
       Kibana pass: TrustMeBro2026!
+
+      Adaptix C2:  https://10.1.10.40:4321/endpoint
+      Adaptix pw:  TrustMeBro2026!
+      Adaptix GUI: ~/Desktop/AdaptixClient.AppImage
 
       RDP to DEVBOX: xfreerdp /v:10.1.10.20 /u:localuser /p:password /dynamic-resolution
       RDP to TARGET: xfreerdp /v:10.1.10.30 /u:localuser /p:password /dynamic-resolution

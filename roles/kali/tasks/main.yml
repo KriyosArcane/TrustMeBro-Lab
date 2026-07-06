@@ -60,6 +60,7 @@
 
 - name: Set advertised routes (idempotent, runs if already up)
   ansible.builtin.command: tailscale set --advertise-routes=10.1.10.0/24
+  when: tailscale_authkey is defined and tailscale_authkey | length > 0
   failed_when: false
 
 # ── RDP: install xrdp ────────────────────────────────────────────────
@@ -123,9 +124,16 @@
   args:
     creates: /etc/apt/keyrings/docker.asc
 
-- name: Add Docker apt repo (Kali uses Debian bookworm base)
+- name: Detect Debian codename for Docker repo
+  ansible.builtin.shell: |
+    . /etc/os-release && echo "$VERSION_CODENAME"
+  register: debian_codename
+  changed_when: false
+  failed_when: false
+
+- name: Add Docker apt repo
   ansible.builtin.copy:
-    content: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable"
+    content: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ debian_codename.stdout | default('bookworm') | trim }} stable"
     dest: /etc/apt/sources.list.d/docker.list
     mode: '0644'
 
@@ -136,11 +144,11 @@
       - docker-ce-cli
       - containerd.io
       - docker-compose-plugin
+      - docker-buildx-plugin
     state: present
     update_cache: true
   retries: 3
   delay: 10
-  failed_when: false
 
 - name: Enable and start Docker
   ansible.builtin.systemd:
@@ -161,12 +169,16 @@
   when: not adaptix_repo.stat.exists
   retries: 3
   delay: 10
-  failed_when: false
 
 - name: Verify Docker is working
   ansible.builtin.shell: docker info > /dev/null 2>&1 && docker compose version > /dev/null 2>&1
   register: docker_check
-  failed_when: false
+  changed_when: false
+
+- name: Assert Docker is functional
+  ansible.builtin.assert:
+    that: docker_check.rc == 0
+    fail_msg: "Docker or docker compose is not working. Cannot build Adaptix."
 
 - name: Check if Adaptix server is already built
   ansible.builtin.stat:
@@ -174,27 +186,18 @@
   register: adaptix_built
 
 - name: Build Adaptix server + extenders via Docker
-  ansible.builtin.shell: |
-    cd /home/kali/AdaptixC2
-    make docker-build-server-ext 2>&1 | tail -20
-  when: docker_check.rc == 0 and not (adaptix_built.stat.exists | default(false))
+  ansible.builtin.command: make docker-build-server-ext
+  args:
+    chdir: /home/kali/AdaptixC2
+  when: not (adaptix_built.stat.exists | default(false))
   register: adaptix_build_result
-  failed_when: false
   timeout: 600
 
-- name: Show Adaptix build result
-  ansible.builtin.debug:
-    msg: "{{ adaptix_build_result.stdout_lines | default(['skipped']) | last }}"
-  when: adaptix_build_result is defined and adaptix_build_result.stdout_lines is defined
-
 - name: Build Adaptix client AppImage via Docker
-  ansible.builtin.shell: |
-    cd /home/kali/AdaptixC2
-    make docker-build-client 2>&1 | tail -20
-  when: docker_check.rc == 0
+  ansible.builtin.command: make docker-build-client
   args:
-    creates: /home/kali/AdaptixC2/AdaptixClient/client-dist/AdaptixClient.AppImage
-  failed_when: false
+    chdir: /home/kali/AdaptixC2
+    creates: /home/kali/AdaptixC2/AdaptixClient/client-dist/AdaptixClient-x86_64.AppImage
   timeout: 600
 
 - name: Generate SSL certificate for Adaptix
@@ -236,7 +239,6 @@
     owner: kali
     group: kali
     mode: '0644'
-    force: false
 
 - name: Check if TrustMeBOF repo exists
   ansible.builtin.stat:
@@ -277,13 +279,22 @@
   failed_when: false
 
 - name: Start Adaptix server runtime
-  ansible.builtin.shell: |
-    cd /home/kali/AdaptixC2 && make docker-up
+  ansible.builtin.command: make docker-up
+  args:
+    chdir: /home/kali/AdaptixC2
   failed_when: false
+
+- name: Ensure Kali Desktop directory exists
+  ansible.builtin.file:
+    path: /home/kali/Desktop
+    state: directory
+    owner: kali
+    group: kali
+    mode: '0755'
 
 - name: Symlink Adaptix client to Desktop
   ansible.builtin.file:
-    src: /home/kali/AdaptixC2/AdaptixClient/client-dist/AdaptixClient.AppImage
+    src: /home/kali/AdaptixC2/AdaptixClient/client-dist/AdaptixClient-x86_64.AppImage
     dest: /home/kali/Desktop/AdaptixClient.AppImage
     state: link
     owner: kali
@@ -296,6 +307,14 @@
     owner: kali
     group: kali
     recurse: true
+
+- name: Set ownership of TrustMeBOF directory
+  ansible.builtin.file:
+    path: /home/kali/TrustMeBOF
+    owner: kali
+    group: kali
+    recurse: true
+  failed_when: false
   failed_when: false
 
 # ── Lab scripts ──────────────────────────────────────────────────────

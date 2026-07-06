@@ -9,7 +9,7 @@
 # Requires: curl, jq
 # Reads ELASTIC_HOST and ELASTIC_PASS from environment or uses defaults.
 
-ELASTIC_HOST="${ELASTIC_HOST:-https://localhost:5601}"
+ELASTIC_HOST="${ELASTIC_HOST:-https://10.1.10.10:5601}"
 ELASTIC_PASS="${ELASTIC_PASS:-TrustMeBro2026!}"
 ELASTIC_USER="${ELASTIC_USER:-elastic}"
 

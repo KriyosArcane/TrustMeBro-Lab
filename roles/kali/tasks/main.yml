@@ -249,15 +249,13 @@
   ansible.builtin.set_fact:
     kali_git_base: "{{ 'https://' + github_token + '@github.com' if github_token is defined and github_token | length > 0 else 'https://github.com' }}"
 
-- name: Clone TrustMeBOF
-  ansible.builtin.git:
-    repo: "{{ kali_git_base }}/KriyosArcane/TrustMeBOF.git"
-    dest: /home/kali/TrustMeBOF
-    depth: 1
-  when: not bof_repo_kali.stat.exists | default(true)
-  retries: 3
-  delay: 10
+- name: Clone TrustMeBOF (skip if private and no PAT)
+  ansible.builtin.shell: |
+    GIT_TERMINAL_PROMPT=0 git clone --depth 1 {{ kali_git_base }}/KriyosArcane/TrustMeBOF.git /home/kali/TrustMeBOF
+  when: not (bof_repo_kali.stat.exists | default(false))
+  register: bof_clone_result
   failed_when: false
+  timeout: 60
 
 - name: Create axscripts directory
   ansible.builtin.file:

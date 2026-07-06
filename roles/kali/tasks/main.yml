@@ -7,6 +7,18 @@
 # 3. Runs Kibana setup automatically
 # 4. Creates lab_creds.txt on the desktop
 
+# ── Cleanup stale apt repos from previous deploys ────────────────────
+- name: Remove stale Docker apt repo if codename is wrong
+  ansible.builtin.shell: |
+    if grep -q 'kali-rolling' /etc/apt/sources.list.d/docker.list 2>/dev/null; then
+      rm -f /etc/apt/sources.list.d/docker.list
+      echo "removed"
+    else
+      echo "ok"
+    fi
+  register: docker_repo_cleanup
+  changed_when: "'removed' in docker_repo_cleanup.stdout"
+
 # ── Tailscale: install + subnet router (only if authkey provided) ────
 - name: Add Tailscale GPG key
   ansible.builtin.shell: |

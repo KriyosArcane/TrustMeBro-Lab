@@ -32,7 +32,7 @@ ludus:
     template: debian-11-x64-server-template
     vlan: 10
     ip_last_octet: 10
-    ram_gb: 8
+    ram_gb: 12
     cpus: 4
     linux: true
     testing:

@@ -106,6 +106,18 @@
   failed_when: false
 
 # ── Adaptix C2: build + run via Docker ───────────────────────────────
+# Follows badsectorlabs.ludus_elastic_container patterns:
+# 1. Check Docker health first
+# 2. Only build if not already built
+# 3. async+poll for long builds
+# 4. wait_for port after start
+
+- name: Check if Docker is installed
+  ansible.builtin.command: which docker
+  register: docker_installed
+  ignore_errors: true
+  changed_when: false
+
 - name: Install Docker prerequisites
   ansible.builtin.apt:
     name:
@@ -115,6 +127,7 @@
       - make
     state: present
     update_cache: true
+  when: docker_installed.rc != 0
 
 - name: Add Docker GPG key
   ansible.builtin.shell: |
@@ -123,6 +136,7 @@
     chmod a+r /etc/apt/keyrings/docker.asc
   args:
     creates: /etc/apt/keyrings/docker.asc
+  when: docker_installed.rc != 0
 
 - name: Detect Debian codename for Docker repo
   ansible.builtin.shell: |
@@ -130,12 +144,14 @@
   register: debian_codename
   changed_when: false
   failed_when: false
+  when: docker_installed.rc != 0
 
 - name: Add Docker apt repo
   ansible.builtin.copy:
     content: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ debian_codename.stdout | default('bookworm') | trim }} stable"
     dest: /etc/apt/sources.list.d/docker.list
     mode: '0644'
+  when: docker_installed.rc != 0
 
 - name: Install Docker CE
   ansible.builtin.apt:
@@ -149,12 +165,18 @@
     update_cache: true
   retries: 3
   delay: 10
+  when: docker_installed.rc != 0
 
-- name: Enable and start Docker
-  ansible.builtin.systemd:
+- name: Ensure Docker service is running
+  ansible.builtin.service:
     name: docker
-    enabled: true
     state: started
+    enabled: true
+
+- name: Verify Docker is working
+  ansible.builtin.command: docker compose version
+  register: docker_check
+  changed_when: false
 
 - name: Check if AdaptixC2 repo exists
   ansible.builtin.stat:
@@ -170,16 +192,6 @@
   retries: 3
   delay: 10
 
-- name: Verify Docker is working
-  ansible.builtin.shell: docker info > /dev/null 2>&1 && docker compose version > /dev/null 2>&1
-  register: docker_check
-  changed_when: false
-
-- name: Assert Docker is functional
-  ansible.builtin.assert:
-    that: docker_check.rc == 0
-    fail_msg: "Docker or docker compose is not working. Cannot build Adaptix."
-
 - name: Check if Adaptix server is already built
   ansible.builtin.stat:
     path: /home/kali/AdaptixC2/AdaptixServer/server-dist/adaptixserver
@@ -190,23 +202,30 @@
   args:
     chdir: /home/kali/AdaptixC2
   when: not (adaptix_built.stat.exists | default(false))
-  register: adaptix_build_result
-  timeout: 600
+  async: 1200
+  poll: 15
+
+- name: Check if Adaptix client is already built
+  ansible.builtin.stat:
+    path: /home/kali/AdaptixC2/AdaptixClient/client-dist/AdaptixClient-x86_64.AppImage
+  register: adaptix_client_built
 
 - name: Build Adaptix client AppImage via Docker
   ansible.builtin.command: make docker-build-client
   args:
     chdir: /home/kali/AdaptixC2
-    creates: /home/kali/AdaptixC2/AdaptixClient/client-dist/AdaptixClient-x86_64.AppImage
-  timeout: 600
+  when: not (adaptix_client_built.stat.exists | default(false))
+  async: 1200
+  poll: 15
 
 - name: Generate SSL certificate for Adaptix
-  ansible.builtin.shell: |
-    cd /home/kali/AdaptixC2/AdaptixServer/server-dist
-    openssl req -x509 -nodes -newkey rsa:2048 -keyout server.rsa.key -out server.rsa.crt -days 365 -subj "/CN=adaptix"
+  ansible.builtin.command: >
+    openssl req -x509 -nodes -newkey rsa:2048
+    -keyout /home/kali/AdaptixC2/AdaptixServer/server-dist/server.rsa.key
+    -out /home/kali/AdaptixC2/AdaptixServer/server-dist/server.rsa.crt
+    -days 365 -subj "/CN=adaptix"
   args:
     creates: /home/kali/AdaptixC2/AdaptixServer/server-dist/server.rsa.crt
-  failed_when: false
 
 - name: Write Adaptix server profile
   ansible.builtin.copy:
@@ -253,7 +272,6 @@
   ansible.builtin.shell: |
     GIT_TERMINAL_PROMPT=0 git clone --depth 1 {{ kali_git_base }}/KriyosArcane/TrustMeBOF.git /home/kali/TrustMeBOF
   when: not (bof_repo_kali.stat.exists | default(false))
-  register: bof_clone_result
   failed_when: false
   timeout: 60
 
@@ -273,13 +291,29 @@
     owner: kali
     group: kali
     mode: '0644'
-    force: false
+  failed_when: false
+
+- name: Copy 404 page for Adaptix
+  ansible.builtin.copy:
+    src: /home/kali/AdaptixC2/AdaptixServer/server-dist/404page.html
+    dest: /home/kali/AdaptixC2/AdaptixServer/server-dist/404page.html
+    remote_src: true
   failed_when: false
 
 - name: Start Adaptix server runtime
   ansible.builtin.command: make docker-up
   args:
     chdir: /home/kali/AdaptixC2
+  register: adaptix_start
+  failed_when: false
+
+- name: Wait for Adaptix to listen on port 4321
+  ansible.builtin.wait_for:
+    host: 0.0.0.0
+    port: 4321
+    state: started
+    delay: 5
+    timeout: 60
   failed_when: false
 
 - name: Ensure Kali Desktop directory exists

@@ -163,6 +163,11 @@
   delay: 10
   failed_when: false
 
+- name: Verify Docker is working
+  ansible.builtin.shell: docker info > /dev/null 2>&1 && docker compose version > /dev/null 2>&1
+  register: docker_check
+  failed_when: false
+
 - name: Check if Adaptix server is already built
   ansible.builtin.stat:
     path: /home/kali/AdaptixC2/AdaptixServer/server-dist/adaptixserver
@@ -170,16 +175,27 @@
 
 - name: Build Adaptix server + extenders via Docker
   ansible.builtin.shell: |
-    cd /home/kali/AdaptixC2 && make docker-build-server-ext
-  when: not adaptix_built.stat.exists | default(true)
+    cd /home/kali/AdaptixC2
+    make docker-build-server-ext 2>&1 | tail -20
+  when: docker_check.rc == 0 and not (adaptix_built.stat.exists | default(false))
+  register: adaptix_build_result
   failed_when: false
+  timeout: 600
+
+- name: Show Adaptix build result
+  ansible.builtin.debug:
+    msg: "{{ adaptix_build_result.stdout_lines | default(['skipped']) | last }}"
+  when: adaptix_build_result is defined and adaptix_build_result.stdout_lines is defined
 
 - name: Build Adaptix client AppImage via Docker
   ansible.builtin.shell: |
-    cd /home/kali/AdaptixC2 && make docker-build-client
+    cd /home/kali/AdaptixC2
+    make docker-build-client 2>&1 | tail -20
+  when: docker_check.rc == 0
   args:
     creates: /home/kali/AdaptixC2/AdaptixClient/client-dist/AdaptixClient.AppImage
   failed_when: false
+  timeout: 600
 
 - name: Generate SSL certificate for Adaptix
   ansible.builtin.shell: |

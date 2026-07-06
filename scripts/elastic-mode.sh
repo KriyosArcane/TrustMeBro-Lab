@@ -110,12 +110,27 @@ case "${1:-}" in
     status|"")
         get_status
         ;;
+    clear|clean|reset)
+        echo "[*] Clearing all Elastic security alerts..."
+        # Delete all alerts from the security signals index
+        eval $CURL $HEADERS -X POST "${ELASTIC_HOST}/.siem-signals-default*/_delete_by_query" \
+            -d '{"query":{"match_all":{}}}' 2>/dev/null | jq -r '"Deleted: \(.deleted // 0) alerts"' 2>/dev/null
+        # Also clear the alerts-security index (Kibana 9.x)
+        eval $CURL $HEADERS -X POST "https://${ELASTIC_HOST##https://}:9200/.alerts-security.alerts-default*/_delete_by_query" \
+            -d '{"query":{"match_all":{}}}' 2>/dev/null | jq -r '"Deleted: \(.deleted // 0) security alerts"' 2>/dev/null
+        # Clear internal alerts index
+        eval $CURL -X POST "https://${ELASTIC_HOST#https://}:9200/.internal.alerts-security.alerts-default*/_delete_by_query" \
+            -H "Content-Type: application/json" \
+            -d '{"query":{"match_all":{}}}' 2>/dev/null | jq -r '"Deleted: \(.deleted // 0) internal alerts"' 2>/dev/null
+        echo "[+] Alerts cleared. Kibana dashboard should be clean."
+        ;;
     *)
-        echo "Usage: $0 {detect|prevent|status}"
+        echo "Usage: $0 {detect|prevent|status|clear}"
         echo ""
         echo "  detect   Alert only. No blocking. Good for demos."
         echo "  prevent  Active blocking. Stops malicious activity."
         echo "  status   Show current protection mode."
+        echo "  clear    Delete all security alerts. Fresh dashboard."
         exit 1
         ;;
 esac

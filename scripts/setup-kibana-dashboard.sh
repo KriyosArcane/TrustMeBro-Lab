@@ -90,3 +90,14 @@ echo "    - File events"
 echo ""
 echo "    Default time window is now 15 minutes."
 echo "    Students open Edge on any Windows machine and land on Kibana."
+
+# Clear all alerts from provisioning noise
+echo ""
+echo "[*] Clearing provisioning alerts..."
+curl -sk -u "${AUTH}" -X POST "https://${ELASTIC_IP}:9200/.siem-signals-default*/_delete_by_query" \
+  -H 'Content-Type: application/json' \
+  -d '{"query":{"match_all":{}}}' 2>/dev/null | jq -r '"Deleted: \(.deleted // 0) siem alerts"' 2>/dev/null
+curl -sk -u "${AUTH}" -X POST "https://${ELASTIC_IP}:9200/.internal.alerts-security.alerts-default*/_delete_by_query" \
+  -H 'Content-Type: application/json' \
+  -d '{"query":{"match_all":{}}}' 2>/dev/null | jq -r '"Deleted: \(.deleted // 0) security alerts"' 2>/dev/null
+echo "[+] Provisioning alerts cleared. Dashboard is clean for students."
